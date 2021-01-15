@@ -1,0 +1,469 @@
+import tkinter
+from tkinter import messagebox
+import json
+import types
+
+GEOMETRY_MODES = [ 'place', 'pack', 'grid', 'none' ]
+
+class Menu():
+  """
+      Menu is a simple abstraction of menu properties as used in `Window.addMenu()`, including
+      the type of the menu entry, the label, and options/children. The `children` property should
+      be a collection of either dictionaries that represent menu entries, or instances of Menu.
+
+      Valid types for a Menu's mType are: `separator`, `command`, `checkbutton`, `radiobutton`, and
+      `cascade`, as defined by tkinter.
+  """
+
+  def __init__(self, name, mType, label=None, options={}, children={}):
+    self.name = name
+    self.mType = mType
+    self.label = label
+    self.options = options
+    self.children = children
+  
+  def asDict(self):
+    return { 'type' : self.mType, 'label' : self.label, 'options' : self.options, 'children' : self.children }
+
+class Window():
+  """
+      Window is a one-stop shop for generating tkinter graphical user interfaces, including the
+      parsing of raw JSON to generate an interface, and holding variables and the widgets of the
+      interface in a uniform, organized manner. Windows may be built using the `build(json)`
+      function, but the most specific way to generate a window is to instantiate the Window class
+      and use its functions...
+
+      Short, and sweet:
+      ```
+      Window(width, height, title, icon) # Creates the window
+      .addMenu(menu)                     # Sets up a menu
+      .addCommands(cmdList)              # Associates python functions with names as 'commands'
+      .addWidgets(widgets)               # Builds the interface using JSON-formatted properties
+      .run()                             # Opens the interface using the mainloop() function
+      ```
+
+      Extra functionality in the way of adding raw Python code (as strings) for commands is
+      available as `addCommandsRaw(...)`, but is not recommended versus the above method due to
+      potential security issues and memory management.
+
+      Extra functionality in the way of managing variables used in widgets is available; however,
+      once a variable is added, it may NOT be removed using the API.
+  """
+
+  def __init__(self, width=480, height=320, title="PUI", icon="./src/gui/icon.png"):
+    self.gui = tkinter.Tk()
+    self.guiIcon = tkinter.PhotoImage(file=icon)
+    self.variables = { }
+
+    self.buttons = WidgetCollection(self.gui, tkinter.Button)
+    self.canvases = WidgetCollection(self.gui, tkinter.Canvas)
+    self.checkbuttons = WidgetCollection(self.gui, tkinter.Checkbutton)
+    self.textboxes = WidgetCollection(self.gui, tkinter.Entry)
+    self.frames = WidgetCollection(self.gui, tkinter.Frame)
+    self.labels = WidgetCollection(self.gui, tkinter.Label)
+    self.listboxes = WidgetCollection(self.gui, tkinter.Listbox)
+    self.menubuttons = WidgetCollection(self.gui, tkinter.Menubutton)
+    self.menus = WidgetCollection(self.gui, tkinter.Menu)
+    self.messages = WidgetCollection(self.gui, tkinter.Message)
+    self.radiobuttons = WidgetCollection(self.gui, tkinter.Radiobutton)
+    self.scales = WidgetCollection(self.gui, tkinter.Scale)
+    self.scrollbars = WidgetCollection(self.gui, tkinter.Scrollbar)
+    self.textareas = WidgetCollection(self.gui, tkinter.Text)
+    self.windows = WidgetCollection(self.gui, tkinter.Toplevel)
+    self.spinboxes = WidgetCollection(self.gui, tkinter.Spinbox)
+    self.panes = WidgetCollection(self.gui, tkinter.PanedWindow)
+    self.labelframes = WidgetCollection(self.gui, tkinter.LabelFrame)
+    self.messageboxes = messagebox
+
+    self.gui.geometry(f"{width}x{height}")
+    self.gui.title(title)
+    self.gui.iconphoto(False, self.guiIcon)
+
+  @property
+  def categories(self):
+    """ Returns a dictionary of (category, WidgetCollection) pairs for the window. """
+    
+    return dict([(e, self.__dict__[e]) for e in self.__dict__ if self.__dict__[e].__class__.__name__ == 'WidgetCollection' ])
+
+  def run(self): self.gui.mainloop()
+
+  def addMenuRaw(self, name, options={ 'tearoff': 0 }, children={}):
+    """
+        Generates a menu for the GUI window based off of a name, set of options, and series of
+        defined children elements. The children collection may be a dictionary of key-value pairs,
+        where the key is the name of the child, and the value is the child's data, or it may be a
+        list of values that are the children widgets themselves.
+
+        Child Template: `{ 'type': '', 'label': '', 'options': {}, 'children': [] }`
+        + Bear in mind, `'tearoff': 0` may need to be specified as an option, i.e. for cascades
+        + Bear in mind, valid entries for `type` are the same as those in add_* functions for menus
+
+        Entries in the collection of children may, instead of being defined as dictionaries above,
+        be defined as Menu instances in the module, which are converted in-method using Menu's
+        `asDict()` function.
+
+        Commands don't need to specifically be specified as function pointers in the children or
+        menu options. They can, instead, be string names that refer to any command added to the
+        window (though this isn't recommended due to potential memory issues). Make note that if
+        a command doesn't exist, however, with the given name that an exception will be raised
+
+        Keyword arguments:
+        + `name` The name of the menu to be generated for the window
+        + `options` The options for the menu
+        + `children` Collection of `Menu()` instances or dictionaries defining children widgets
+    """
+
+    main : tkinter.Menu = self.menus.addWidget(name, options=options)
+
+    # Reconfigure children collection to accomodate dictionaries and lists
+    if 'dict' in str(type(children)):
+      children = [(cName, children[cName]) for cName in children]
+    elif 'list' in str(type(children)):
+      children = [(child.name, child) for child in children]
+    else:
+      raise Exception("Unexpected collection type for children during menu creation")
+
+    for cName, child in children:
+      # Convert Menu instances to dictionaries for processing
+      if child.__class__.__name__ != 'dict': child = child.asDict()
+
+      # Associate commands in the window with commands in the menu unless a command is already assigned
+      # This is discerned by checking the type of the command value is a function
+      if child['type'] != 'separator':
+        if 'command' in child['options'] and child['options']['command']:
+          if not 'function' in str(type(child['options']['command'])):
+            if self.hasCommand(child['options']['command']):
+              child['options']['command'] = self.getCommand(child['options']['command'])
+            else:
+              raise Exception(f"There is no command named {child['options']['command']} in this window.")
+
+      # Act based on child type
+      if child['type'] == 'separator':
+        main.add_separator()
+      elif child['type'] == 'command':
+        main.add_command(label=child['label'], **child['options'])
+      elif child['type'] == 'checkbutton':
+        # Associate the variable for the checkbox
+        if self.hasVariable(child['options']['variable']):
+          child['options']['variable'] = self.getVariable(child['options']['variable'])
+        else:
+          child['options']['variable'] = self.addVariable(child['options']['variable'], tkinter.BooleanVar, default=child['options']['isOn'])
+
+        del child['options']['isOn']
+
+        main.add_checkbutton(label=child['label'], **child['options'])
+      elif child['type'] == 'radiobutton':
+        # Associate the variable for the radiobutton
+        if self.hasVariable(child['options']['variable']):
+          child['options']['variable'] = self.getVariable(child['options']['variable'])
+        else:
+          var = str(type(child['options']['value'])).split("'")[1]
+          if var == 'bool':
+            var = tkinter.BooleanVar
+          elif var == 'str':
+            var = tkinter.StringVar
+          elif var == 'int':
+            var = tkinter.IntVar
+          elif var == 'float':
+            var = tkinter.DoubleVar
+          else:
+            raise Exception(f"The variable type for the variable '{child['options']['variable']}' is unknown.")
+
+          child['options']['variable'] = self.addVariable(child['options']['variable'], var)
+
+        main.add_radiobutton(label=child['label'], **child['options'])
+      elif child['type'] == "cascade":
+        self.addMenuRaw(cName, options=child['options'], children=child['children'])
+        main.add_cascade(label=child['label'], menu=self.menus.getWidget(cName))
+    
+    self.gui.config(menu=main)
+    return self
+
+  def addMenu(self, menu: Menu):
+    """
+        Wrapper for `addMenuRaw()` which allows the root menu widget containing all children
+        widget definitions to be used in a succinct, single call
+    """
+
+    dic = menu.asDict()
+    self.addMenuRaw(menu.name, options=dic['options'], children=dic['children'])
+    return self
+
+  def addWidgets(self, widgets):
+    """
+        Accepts a dictionary of (widget category, widget list) pairs that will be sequentially
+        added to this Window. Widgets are specified using the given sample below.
+
+        Sample: `{ 'name' : '', 'geoMode': '', 'geoOptions': {}, 'options': {} }`
+        + `geoMode` is one of the three geometry functions, or 'none' for no placement to be done
+        + `options` is any collection of key-value pairs that would be passed to a widget constructor
+
+        Widget categories are any type of widget defined by tkinter, including Button and Frame. The
+        specification of these categories is simple -- in example: `'buttons': [ ... ]`
+
+        Keyword arguments:
+        + `widgets` The collection of widgets to add to this window
+    """
+
+    for category in widgets:
+      if not category in self.categories:
+        raise Exception(f"The category '{category}' is not valid for widgets.")
+
+      for widget in widgets[category]:
+        # Attempt to locate the parent widget for this widget
+        # If there is no parent specified, defaults to the window
+        # If there is a specified parent but it's not a string, assume its a widget
+        if 'root' in widget and widget['root']:
+          if 'str' in str(type(widget['root'])):
+            for cat in self.categories:
+              if self.categories[cat].hasWidget(widget['root']): widget['root'] = self.categories[cat].getWidget(widget['root'])
+            
+            if 'str' in str(type(widget['root'])):
+              raise Exception(f"No widget with the name '{widget['root']}' was found to assign as parent.")
+        else:
+          widget['root'] = self.gui
+        
+        # Attempt to locate the command, if any
+        # If there is a specified command but its not a string, assume its a function
+        if 'command' in widget['options'] and widget['options']['command']:
+          if 'str' in str(type(widget['options']['command'])):
+            if self.hasCommand(widget['options']['command']):
+              widget['options']['command'] = self.getCommand(widget['options']['command'])
+            else:
+              raise Exception(f"No command with the name '{widget['options']['command']}' exists for this window.")
+
+        # Add the widget
+        self.__dict__[category].addWidget(
+          widget['name'],
+          widget['root'],
+          widget['geoMode'],
+          widget['geoOptions'],
+          widget['options']
+        )
+    
+    return self
+
+  def hasVariable(self, name): return name in self.variables
+
+  def getVariable(self, name):
+    if self.hasVariable(name): return self.variables[name]
+    else:
+      return None
+
+  def addVariable(self, name, _class, default=None):
+    if not self.hasVariable(name):
+      self.variables[name] = _class()
+
+      if default: self.variables[name].set(default)
+
+      return self.getVariable(name)
+    else:
+      raise Exception(f"Variable {name} already exists for this window")
+  
+  def hasCommand(self, name): return 'com_'+name in dir(self)
+
+  def getCommand(self, name):
+    if self.hasCommand(name): return getattr(self, 'com_'+name)
+    else:
+      return None
+    
+  def addCommand(self, name, com):
+    """
+        Accepts a name and function already-defined using Python, and binds the function to
+        this window for execution in widgets that use it. A function should be defined with
+        a header that includes `self` as the lone parameter, and should not return values.
+        `self` in the context of said function will be this window.
+
+        Keyword arguments:
+        + `name` The name to represent the function `com` as
+        + `com` The function, prior-defined, to bind to this Window for usage
+    """
+
+    if not self.hasCommand(name):
+      setattr(self, 'com_'+name, types.MethodType(com, self))
+    else:
+      raise Exception(f"A command with the name '{name}' already exists for this window.")
+
+    return self
+  
+  def addCommands(self, comList):
+    """ Wrapper for executing multiple calls of `addCommand()` """
+
+    for name, com in comList: self.addCommand(name, com)
+    return self
+  
+  def addCommandRaw(self, name, com):
+    """
+        Accepts a raw, single-line string (using `\\n` as line separators) alongside a name,
+        and generates a command bound to this Window. The spacing of each line should follow
+        the same constraints as any other Python code, exempting the `def func(self)` line.
+
+        Keyword arguments:
+        + `name` The name of the command which the code in `com` should be represented by
+        + `com` The raw Python code to execute when the command is called by a widget
+    """
+
+    if not self.hasCommand(name):
+      parsed = '\n'.join([' '+ln for ln in com.split('\n')])
+      _local = {}
+
+      exec(f"def com_{name}(self):\n{parsed}", None, _local)
+
+      for name, value in _local.items():
+        setattr(self, name, types.MethodType(value, self))
+    else:
+      raise Exception(f"A command with the name '{name}' already exists for this window.")
+  
+    return self
+  
+  def addCommandsRaw(self, comList):
+    """ Wrapper for executing multiple calls of `addCommandRaw()` """
+
+    for name, com in comList: self.addCommandRaw(name, com)
+    return self
+
+  @staticmethod
+  def build(raw=''):
+    """ 
+        Builds a Window from raw text in JSON format, registering raw code commands, generating
+        the widgets and assigning parents / commands, and finally generating the menu for the
+        window itself.
+
+        An example of JSON-formatted design is available in `sample.json`.
+
+        Keyword arguments:
+        + `raw` Raw JSON-formatted string that contains window, menu, command, and widget properties
+
+        Returns: Window instance generated using the raw JSON string
+    """
+
+    if not raw: return None
+    else:
+      dic = json.loads(raw)
+
+      # Generate window with base properties
+      win = Window(dic['win']['width'], dic['win']['height'], dic['win']['title'])
+
+      # Register commands
+      for com in dic['commands']:
+        win.addCommandRaw(com, dic['commands'][com])
+
+      # Generate widgets
+      for category in dic['widgets']:
+        if not category in win.categories:
+          raise Exception(f"The category '{category}' is not valid for widgets.")
+
+        for widget in dic['widgets'][category]:
+          info = dic['widgets'][category][widget]
+
+          # Attempt to locate the parent widget for this widget
+          if 'root' in info and info['root']:
+            for searchCategory in dic['widgets']:
+              if win.__dict__[searchCategory].hasWidget(info['root']):
+                info['root'] = win.__dict__[searchCategory].getWidget(info['root'])
+            
+            if 'str' in str(type(info['root'])):
+              raise Exception(f"A widget with the name \"{info['root']}\" could not be located.")
+          else:
+            info['root'] = None
+          
+          # Attempt to locate the command, if specified
+          if 'command' in info['options'] and info['options']['command']:
+            if win.hasCommand(info['options']['command']):
+              info['options']['command'] = win.getCommand(info['options']['command'])
+            else:
+              raise Exception(f"There is no command named '{info['options']['command']}'")
+
+          win.__dict__[category].addWidget(
+            widget,
+            info['root'],
+            info['geoMode'],
+            info['geoOptions'],
+            info['options']
+          )
+          # TODO Canvas won't paint properly without information about painting
+          # TODO Event bindings in BUILD and ADDEVENTS func, for window + widgets
+      
+      # Generate menu
+      for mName in dic['menus']:
+        menu = dic['menus'][mName]
+        win.addMenuRaw(mName, options=menu['options'], children=menu['children'])
+
+      return win
+
+class WidgetCollection():
+  """
+      WidgetCollection represents a set of widgets that are all of the same class. It bundles
+      up the creation of widgets, placement of them, and reconfiguration. For example, a
+      WidgetCollection may handle all instances of tkinter.Button.
+
+      Check for widgets with `hasWidget(name)`, get widgets using `getWidget(name)`, and add
+      a new widget of the collection's type using `addWidget(...)`. Reconfigure properties
+      using `configure(...)`.
+  """
+
+  def __init__(self, _parent, _class):
+    self.widgets = { }
+    self._parent = _parent
+    self._class = _class
+
+  def hasWidget(self, name): return name in self.widgets
+
+  def getWidget(self, name): return None if not self.hasWidget(name) else self.widgets[name]
+
+  def addWidget(self, name, root=None, geoMode='none', geoOptions={}, options={}):
+    """
+        Adds a widget to the widget collection, registering the appropriate parent and toggling
+        geometry options for the widget.
+
+        Keyword arguments:
+        + `name` The name of the widget
+        + `root` The parent of the widget -- None for the window, or another widget
+        + `geoMode` The geometry mode to use on the widget -- one of 'place', 'grid', 'pack', or 'none'
+        + `geoOptions` The geometry options to supply the geometry functions
+        + `options` The options to use in construction of the widget. These are based on widget type
+
+        The default geometry mode is 'none', which means that no geometry functions are called. The 'none'
+        option is useful for widgets like Menus, etc.
+
+        Returns: The widget after its construction and geometry creation
+    """
+
+    # Raise an exception if an invalid geometry mode is selected
+    # Raise an exception if the widget name already exists
+    if not geoMode.lower() in GEOMETRY_MODES:
+      raise Exception(f"Geometry mode {geoMode} is not valid mode. Valid: {GEOMETRY_MODES}")
+
+    if not name in self.widgets:
+      if self._class == tkinter.Toplevel:
+        self.widgets[name] = self._class(**options)
+      else:
+        self.widgets[name] = self._class(root if root else self._parent, **options)
+    else:
+      raise Exception(f"Widget {str(self._class).split(' ')[1][:-1]}, Name '{name}' already exists")
+
+    # Execute the proper geometry function based on the mode selected and given geometry options
+    mode = geoMode.lower()
+    if mode == 'place':
+        self.widgets[name].place(**geoOptions)
+    elif mode == 'pack':
+        self.widgets[name].pack(**geoOptions)
+    elif mode == 'grid':
+        self.widgets[name].grid(**geoOptions)
+
+    return self.widgets[name]
+
+  def removeWidget(self, name):
+    if hasWidget(name):
+      wid = self.getWidget(name)
+
+      del self.widgets[name]
+
+      return wid
+
+    return None
+  
+  def configure(self, name, **options):
+    """ Reconfigures a widget using the given options """
+
+    if self.hasWidget(name): self.getWidget(name).configure(**options)

@@ -1,0 +1,134 @@
+{
+    "win" : {
+        "width"  : 480,
+        "height" : 320,
+        "title" : "PUI Test"
+    },
+    "commands" : {
+        "test" : "print(\"Hello\")\nself.messageboxes.showinfo(\"Test\", \"Show me!\")"
+    },
+    "menus": {
+        "mnuMain": {
+            "options": {
+                "tearoff" : 0
+            },
+            "children" : {
+                "mnuMain_File" : {
+                    "type" : "cascade",
+                    "label" : "File",
+                    "options" : {
+                        "tearoff" : 0
+                    },
+                    "children" : {
+                        "mnuMain_File_New" : {
+                            "type" : "command",
+                            "label" : "New",
+                            "options" : {
+                                "command" : "test"
+                            }
+                        },
+                        "mnuMain_File_Sep1" : { "type" : "separator" },
+                        "mnuMain_File_Exit" : {
+                            "type" : "command",
+                            "label" : "Exit!",
+                            "options" : {
+                                "command" : "test"
+                            }
+                        }
+                    }
+                },
+                "mnuMain_Test" : {
+                    "type" : "cascade",
+                    "label" : "Test",
+                    "options" : {
+                        "tearoff" : 0
+                    },
+                    "children" : {
+                        "mnuMain_Test_Check" : {
+                            "type" : "checkbutton",
+                            "label" : "Checky",
+                            "options" : {
+                                "isOn" : false,
+                                "onvalue" : 1,
+                                "offvalue" : 0,
+                                "variable" : "mtcVariable"
+                            }
+                        },
+                        "mnuMain_Test_Radio" : {
+                            "type" : "radiobutton",
+                            "label" : "Rady",
+                            "options" : {
+                                "value" : 30.2,
+                                "variable" : "mtrVariable",
+                                "command" : "test"
+                            }
+                        },
+                        "mnuMain_Test_Cascade" : {
+                            "type" : "cascade",
+                            "label" : "Cascade Test",
+                            "options" : {
+                                "tearoff" : 0
+                            },
+                            "children" : {
+                                "mnuMain_Test_Cascade_Sep1" : {
+                                    "type" : "separator"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "widgets": {
+        "frames" : {
+            "frmOne": {
+                "geoMode" : "pack",
+                "geoOptions" : {
+                },
+                "options" : {
+                }
+            }
+        },
+        "buttons" : {
+            "btnOne" : {
+                "geoMode" : "place",
+                "geoOptions" : {
+                    "x" : 16,
+                    "y" : 32
+                },
+                "options" : {
+                    "text" : "test",
+                    "width" : 10,
+                    "height" : 10,
+                    "command" : "test"
+                }
+            },
+            "frmOne_btnOne" : {
+                "root" : "frmOne",
+                "geoMode" : "pack",
+                "geoOptions" : {
+                    "side" : "left"
+                },
+                "options" : {
+                    "text" : "test 2",
+                    "fg" : "blue",
+                    "command" : "test"
+                }
+            }
+        },
+        "labels": {
+            "lblOne" : {
+                "geoMode" : "place",
+                "geoOptions" : {
+                    "x" : 48,
+                    "y" : 32
+                },
+                "options": {
+                    "text" : "I'm a label",
+                    "fg" : "red"
+                }
+            }
+        }
+    }
+}

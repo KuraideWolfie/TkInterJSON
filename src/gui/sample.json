@@ -1,0 +1,53 @@
+{
+    "win" : {
+        "width" : 480,
+        "height" : 320,
+        "title" : "Window Title"
+    },
+    "commands" : {
+        "sample" : "print(\"Hello World\")"
+    },
+    "menus": {
+        "mnuSample" : {
+            "options" : {
+                "tearoff" : 0
+            },
+            "children" : {
+                "mnuSample_File" : {
+                    "type" : "cascade",
+                    "label" : "File",
+                    "options" : {
+                        "tearoff" : 0
+                    },
+                    "children" : {
+                        "mnuSample_File_Exit" : {
+                            "type" : "command",
+                            "label" : "Exit",
+                            "options" : {
+                                "command" : "sample"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "widgets": {
+        "buttons" : {
+            "btnTest" : {
+                "root" : "",
+                "geoMode" : "place",
+                "geoOptions" : {
+                    "x" : 0,
+                    "y" : 0
+                },
+                "options" : {
+                    "text" : "Click Me",
+                    "fg" : "green",
+                    "command" : "sample"
+                }
+            }
+        }
+        // Other categories
+    }
+}
