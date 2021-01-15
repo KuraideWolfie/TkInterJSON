@@ -248,7 +248,12 @@ class Window():
         + `geoMode` is one of the three geometry functions, or 'none' for no placement to be done
         + `options` is any collection of key-value pairs that would be passed to a widget constructor
         + `paneOptions` (optional) is a collection of key-value pairs for usage in `PanedWindow.add()`
-          for the widget
+        for the widget
+        + `strokes` (optional) is a list of dictionary specifying stroke information for a `Canvas`
+          + Sample: `{ "type" : '', "unnamed" : [ ], "named" : { "tags" : [ ] } }`
+            + `type` is any acceptable type of canvas graphic
+            + `unnamed` is a list of parameters passed to the `create_*()` functions before named parameters
+            + `named` is a dictionary of key-value pairs passed to the `create_*()` functions
 
         Widget categories are any type of widget defined by tkinter, including Button and Frame. The
         specification of these categories is simple -- in example: `'buttons': [ ... ]`
