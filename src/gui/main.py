@@ -52,7 +52,7 @@ class Window():
 
   def __init__(self, width=480, height=320, title="PUI", icon="./src/gui/icon.png"):
     self.gui = tkinter.Tk()
-    self.guiIcon = tkinter.PhotoImage(file=icon)
+    self.guiIcon = None
     self.variables = { }
 
     self.buttons = WidgetCollection(self.gui, tkinter.Button)
@@ -77,7 +77,7 @@ class Window():
 
     self.gui.geometry(f"{width}x{height}")
     self.gui.title(title)
-    self.gui.iconphoto(False, self.guiIcon)
+    self.setIcon(icon)
 
   @property
   def categories(self):
@@ -86,6 +86,22 @@ class Window():
     return dict([(e, self.__dict__[e]) for e in self.__dict__ if self.__dict__[e].__class__.__name__ == 'WidgetCollection' ])
 
   def run(self): self.gui.mainloop()
+
+  def setIcon(self, icon="./src/gui/icon.png"):
+    """
+        Sets the icon for the window. Does nothing if the provided argument is an empty string
+
+        Keyword arguments:
+        + `icon` A string representing the path to the icon to be used
+        
+        Returns: Self for chaining
+    """
+
+    if icon:
+      self.guiIcon = tkinter.PhotoImage(file=icon)
+      self.gui.iconphoto(False, self.guiIcon)
+    
+    return self
 
   def addMenuRaw(self, name, options={ 'tearoff': 0 }, children={}):
     """
@@ -111,6 +127,8 @@ class Window():
         + `name` The name of the menu to be generated for the window
         + `options` The options for the menu
         + `children` Collection of `Menu()` instances or dictionaries defining children widgets
+
+        Returns: Self for chaining
     """
 
     main : tkinter.Menu = self.menus.addWidget(name, options=options)
@@ -179,14 +197,46 @@ class Window():
     self.gui.config(menu=main)
     return self
 
-  def addMenu(self, menu: Menu):
+  def addMenu(self, menu: Menu = None):
     """
         Wrapper for `addMenuRaw()` which allows the root menu widget containing all children
         widget definitions to be used in a succinct, single call
+
+        Keyword arguments:
+        + `menu` The Menu to add to the window
+
+        Returns: Self for chaining
     """
+
+    # Premature return -- no menu provided
+    if menu == None: return self
 
     dic = menu.asDict()
     self.addMenuRaw(menu.name, options=dic['options'], children=dic['children'])
+    return self
+  
+  def deleteWidgets(self, widgets=[]):
+    """
+        Accepts a list of widget names and sequentially deletes them from the window. If a widget is
+        not found, then an exception is raised indicating the window does not contain the widget
+
+        Keyword arguments:
+        + `widgets` A list of widget names as defined when adding widgets to the window
+
+        Returns: Self for chaining
+    """
+
+    for widget in widgets:
+      found = False
+
+      for category in self.categories:
+        if self.categories[category].hasWidget(widget):
+          found = True
+          self.categories[category].deleteWidget(widget)
+      
+      if not found:
+        raise Exception(f"No widget with the name '{widget}' was found in the window.")
+    
     return self
 
   def addWidgets(self, widgets):
@@ -197,12 +247,16 @@ class Window():
         Sample: `{ 'name' : '', 'geoMode': '', 'geoOptions': {}, 'options': {} }`
         + `geoMode` is one of the three geometry functions, or 'none' for no placement to be done
         + `options` is any collection of key-value pairs that would be passed to a widget constructor
+        + `paneOptions` (optional) is a collection of key-value pairs for usage in `PanedWindow.add()`
+          for the widget
 
         Widget categories are any type of widget defined by tkinter, including Button and Frame. The
         specification of these categories is simple -- in example: `'buttons': [ ... ]`
 
         Keyword arguments:
         + `widgets` The collection of widgets to add to this window
+
+        Returns: Self for chaining
     """
 
     for category in widgets:
@@ -233,13 +287,39 @@ class Window():
               raise Exception(f"No command with the name '{widget['options']['command']}' exists for this window.")
 
         # Add the widget
-        self.__dict__[category].addWidget(
+        wid = self.__dict__[category].addWidget(
           widget['name'],
           widget['root'],
           widget['geoMode'],
           widget['geoOptions'],
           widget['options']
         )
+
+        # Add the widget to the panedwindow if the parent is a PanedWindow
+        if 'PanedWindow' == widget['root'].__class__.__name__: widget['root'].add(wid, **(widget['paneOptions'] if 'paneOptions' in widget else {}))
+
+        # Take care of canvas painting
+        if category == 'canvases':
+          canvas: tkinter.Canvas = self.canvases.getWidget(widget['name'])
+          types = {
+            'line' : canvas.create_line,
+            'rectangle' : canvas.create_rectangle,
+            'oval' : canvas.create_oval,
+            'polygon' : canvas.create_polygon,
+            'arc' : canvas.create_arc,
+            'image' : canvas.create_image,
+            'text' : canvas.create_text
+          }
+
+          for stroke in widget['strokes']:
+            # Perform the stroke using unnamed and named properties
+            if stroke['type'] in types:
+              obj = types[stroke['type']](*stroke['unnamed'], **(stroke['named'] if 'named' in stroke else {}))
+            elif stroke['type'] == 'widget':
+              # TODO Generate a new widget and associate with the canvas using create_image
+              pass
+            else:
+              raise Exception(f"Invalid stroke type provided: '{stroke['type']}'")
     
     return self
 
@@ -277,6 +357,8 @@ class Window():
         Keyword arguments:
         + `name` The name to represent the function `com` as
         + `com` The function, prior-defined, to bind to this Window for usage
+
+        Returns: Self for chaining
     """
 
     if not self.hasCommand(name):
@@ -287,7 +369,14 @@ class Window():
     return self
   
   def addCommands(self, comList):
-    """ Wrapper for executing multiple calls of `addCommand()` """
+    """
+        Wrapper for executing multiple calls of `addCommand()`
+
+        Keyword arguments:
+        + `comList` A list of (name, command) pairs for usage in `addCommand()`
+
+        Returns: Self for chaining
+    """
 
     for name, com in comList: self.addCommand(name, com)
     return self
@@ -301,6 +390,8 @@ class Window():
         Keyword arguments:
         + `name` The name of the command which the code in `com` should be represented by
         + `com` The raw Python code to execute when the command is called by a widget
+
+        Returns: Self for chaining
     """
 
     if not self.hasCommand(name):
@@ -317,17 +408,44 @@ class Window():
     return self
   
   def addCommandsRaw(self, comList):
-    """ Wrapper for executing multiple calls of `addCommandRaw()` """
+    """
+        Wrapper for executing multiple calls of `addCommandRaw()`
+
+        Keyword arguments:
+        + `comList` A list of (name, code string) pairs for usage in `addCommandRaw()`
+
+        Returns: Self for chaining
+    """
 
     for name, com in comList: self.addCommandRaw(name, com)
     return self
 
   @staticmethod
-  def build(raw=''):
+  def build(width=480, height=320, title='PUI', icon=None, menu=None, com=[], widgets={}):
+    """
+        Builds a Window by shortening all critical function calls to this single call.
+
+        Keyword arguments:
+        + `width` The width of the window
+        + `height` The height of the window
+        + `title` The title text for the window
+        + `icon` The filepath of the icon to be used for the window
+        + `menu` A Menu instance for adding a menu to the window, or None for no menu
+        + `com` The list of (name, function) pairs to associate with the window
+        + `widgets` The dictionary of (category, widgetlist) pairs for adding widgets
+
+        Returns: The Window built using the given parameters
+    """
+
+    return Window(width, height, title).setIcon(icon).addMenu(menu).addCommands(com).addWidgets(widgets)
+
+  @staticmethod
+  def buildRaw(raw=''):
     """ 
-        Builds a Window from raw text in JSON format, registering raw code commands, generating
-        the widgets and assigning parents / commands, and finally generating the menu for the
-        window itself.
+        Builds a Window from raw text in JSON format:
+        1. Registers raw code commands -- that is, Python code stored as strings in JSON
+        2. Generates and places widgets, assigning the appropriate parents based on name
+        3. Generates the menu for the Window
 
         An example of JSON-formatted design is available in `sample.json`.
 
@@ -343,6 +461,7 @@ class Window():
 
       # Generate window with base properties
       win = Window(dic['win']['width'], dic['win']['height'], dic['win']['title'])
+      win.setIcon(dic['win']['icon'] if 'icon' in dic['win'] else None)
 
       # Register commands
       for com in dic['commands']:
@@ -358,31 +477,62 @@ class Window():
 
           # Attempt to locate the parent widget for this widget
           if 'root' in info and info['root']:
-            for searchCategory in dic['widgets']:
-              if win.__dict__[searchCategory].hasWidget(info['root']):
-                info['root'] = win.__dict__[searchCategory].getWidget(info['root'])
-            
             if 'str' in str(type(info['root'])):
-              raise Exception(f"A widget with the name \"{info['root']}\" could not be located.")
+              for searchCategory in dic['widgets']:
+                if win.__dict__[searchCategory].hasWidget(info['root']):
+                  info['root'] = win.__dict__[searchCategory].getWidget(info['root'])
+              
+              if 'str' in str(type(info['root'])):
+                raise Exception(f"A widget with the name \"{info['root']}\" could not be located.")
           else:
             info['root'] = None
           
           # Attempt to locate the command, if specified
           if 'command' in info['options'] and info['options']['command']:
-            if win.hasCommand(info['options']['command']):
-              info['options']['command'] = win.getCommand(info['options']['command'])
-            else:
-              raise Exception(f"There is no command named '{info['options']['command']}'")
+            if 'str' in str(type(info['options']['command'])):
+              if win.hasCommand(info['options']['command']):
+                info['options']['command'] = win.getCommand(info['options']['command'])
+              else:
+                raise Exception(f"There is no command named '{info['options']['command']}'")
 
-          win.__dict__[category].addWidget(
+          wid = win.__dict__[category].addWidget(
             widget,
             info['root'],
             info['geoMode'],
             info['geoOptions'],
             info['options']
           )
-          # TODO Canvas won't paint properly without information about painting
+
+          # Add the widget to the panedwindow if the parent is a PanedWindow
+          if 'PanedWindow' == info['root'].__class__.__name__: info['root'].add(wid, **(info['paneOptions'] if 'paneOptions' in info else {}))
+
+          # Take care of canvas painting
+          if category == 'canvases':
+            canvas : tkinter.Canvas = win.canvases.getWidget(widget)
+            types = {
+              'line' : canvas.create_line,
+              'rectangle' : canvas.create_rectangle,
+              'oval' : canvas.create_oval,
+              'polygon' : canvas.create_polygon,
+              'arc' : canvas.create_arc,
+              'image' : canvas.create_image,
+              'text' : canvas.create_text
+            }
+
+            for stroke in info['strokes']:
+              # Perform the stroke using unnamed and named properties
+              if stroke['type'] in types:
+                obj = types[stroke['type']](*stroke['unnamed'], **(stroke['named'] if 'named' in stroke else {}))
+              elif stroke['type'] == 'widget':
+                # TODO Generate a new widget and associate with the canvas using create_image()
+                pass
+              else:
+                raise Exception(f"Invalid stroke type provided: '{stroke['type']}'.")
+
+          # TODO Event bindings for canvas children
+          # TODO Modify canvas children using configure -- https://tkdocs.com/tutorial/canvas.html > Modifying Items
           # TODO Event bindings in BUILD and ADDEVENTS func, for window + widgets
+          # TODO Simplify buildRaw and addWidgets with a single helper function
       
       # Generate menu
       for mName in dic['menus']:
@@ -397,19 +547,48 @@ class WidgetCollection():
       up the creation of widgets, placement of them, and reconfiguration. For example, a
       WidgetCollection may handle all instances of tkinter.Button.
 
-      Check for widgets with `hasWidget(name)`, get widgets using `getWidget(name)`, and add
-      a new widget of the collection's type using `addWidget(...)`. Reconfigure properties
-      using `configure(...)`.
+      Actions:
+      + Check for widgets using `hasWidget()`
+      + Get widgets and metadata using `getWidget()` and `getMeta()`
+      + Add a new widget of the collection's type using `addWidget()`
+      + Reconfigure widget properties using `configure()`
   """
 
   def __init__(self, _parent, _class):
     self.widgets = { }
+    self.meta = { }
     self._parent = _parent
     self._class = _class
 
   def hasWidget(self, name): return name in self.widgets
 
+  def hasMeta(self, name): return name in self.meta
+
   def getWidget(self, name): return None if not self.hasWidget(name) else self.widgets[name]
+
+  def getMeta(self, name):
+    """
+        Gets metadata for a widget in the collection.
+
+        Keyword arguments:
+        + `name` The name of the widget to fetch metadata for
+
+        Returns: None if metadata doesn't exist or the widget isn't found, or stored metadata if found
+    """
+
+    if self.hasWidget(name):
+      if name in self.meta:
+        return self.meta[name]
+      else:
+        return None
+    else:
+      return None
+  
+  def setMeta(self, name, meta):
+    if self.hasWidget(name):
+      self.meta[name] = meta
+    else:
+      raise Exception(f"No widget with the name '{name}' exists in this window.")
 
   def addWidget(self, name, root=None, geoMode='none', geoOptions={}, options={}):
     """
@@ -453,17 +632,35 @@ class WidgetCollection():
 
     return self.widgets[name]
 
-  def removeWidget(self, name):
+  def deleteWidget(self, name):
+    """
+        Accepts a widget name, and deletes it.
+
+        Keyword arguments:
+        + `name` The name of the widget to be deleted
+
+        Returns: Self for chaining
+    """
+
     if hasWidget(name):
       wid = self.getWidget(name)
 
       del self.widgets[name]
-
-      return wid
-
-    return None
+      if name in self.meta: del self.meta[name]
+      wid.delete()
+    
+    return self
   
   def configure(self, name, **options):
-    """ Reconfigures a widget using the given options """
+    """
+        Reconfigures a widget using the given options
+
+        Keyword arguments:
+        + `name` The name of the widget to configure
+        + `options` named set of arguments to pass to the widget's configure function
+
+        Returns: Self for chaining
+    """
 
     if self.hasWidget(name): self.getWidget(name).configure(**options)
+    return self

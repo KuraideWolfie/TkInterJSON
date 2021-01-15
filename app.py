@@ -9,12 +9,10 @@ def test2(self):
 
 if __name__ == "__main__":
     with open('./src/gui/test.json', 'r') as fr:
-        win = Window.build(''.join(fr.readlines()))
+        win = Window.buildRaw(''.join(fr.readlines()))
         win.run()
-
-    win = Window(480, 320, "PUI Test")
-    win.addMenu(
-        Menu('mnuMain', '', '', {'tearoff': 0}, [
+    
+    menu = Menu('mnuMain', '', '', {'tearoff': 0}, [
             Menu('mnuMain_File', 'cascade', 'File', {'tearoff': 0}, [
                 Menu('mnuMain_File_New', 'command', 'New', {'command': test}),
                 Menu('mnuMain_File_Sep1', 'separator'),
@@ -28,9 +26,8 @@ if __name__ == "__main__":
                 ])
             ])
         ])
-    ).addCommands(
-        [ ('test2', test2) ]
-    ).addWidgets({
+    commands = [ ('test2', test2) ]
+    widgets = {
         "frames" : [
             {
                 "name" : "frmOne",
@@ -39,7 +36,22 @@ if __name__ == "__main__":
                 "options" : {}
             }
         ],
+        "panes" : [
+            {
+                "name" : "pane1",
+                "geoMode" : "pack",
+                "geoOptions" : { "fill" : 'both', "expand" : 1 },
+                "options" : {}
+            }
+        ],
         "buttons" : [
+            {
+                "name" : "pane1Btn",
+                "root" : "pane1",
+                "geoMode" : "pack",
+                "geoOptions" : { "side" : "right" },
+                "options" : { "text" : "GIG" }
+            },
             {
                 "name" : "btnOne",
                 "geoMode" : "place",
@@ -81,5 +93,27 @@ if __name__ == "__main__":
                     "fg" : "red"
                 }
             }
+        ],
+        "canvases" : [
+            {
+                "name" : "canTest",
+                "geoMode" : "place",
+                "geoOptions" : {
+                    "x" : 200,
+                    "y" : 200
+                },
+                "options" : {
+                    "width" : 128,
+                    "height" : 64
+                },
+                "strokes" : [
+                    { "type" : "line", "unnamed" : [ 4, 4, 124, 4, 124, 60, 4, 60, 4, 4 ], "named" : { "arrow" : "last", "tags" : [ 'example' ] } },
+                    { "type" : "oval", "unnamed" : [ 10, 10, 40, 40 ] },
+                    { "type" : "rectangle", "unnamed" : [ 12, 12, 20, 20 ], "named" : { "fill" : "red", "tags" : [ 'example' ] } }
+                ]
+            }
         ]
-    }).run()
+    }
+
+    win : Window = Window.build(menu=menu, com=commands, widgets=widgets)
+    win.run()

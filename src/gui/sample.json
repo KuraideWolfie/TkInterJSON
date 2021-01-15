@@ -2,7 +2,8 @@
     "win" : {
         "width" : 480,
         "height" : 320,
-        "title" : "Window Title"
+        "title" : "Window Title",
+        "icon" : "./src/gui/icon.png"
     },
     "commands" : {
         "sample" : "print(\"Hello World\")"
@@ -47,6 +48,19 @@
                     "command" : "sample"
                 }
             }
+        },
+        "canvases" : {
+            // root, geoMode, geoOptions, options
+            "strokes" : [
+                {
+                    "type" : "line",
+                    "unnamed" : [ 4, 4, 4, 8, 8, 8, 8, 4 ],
+                    "named" : {
+                        "tags" : [ ]
+                        // Other properties
+                    }
+                }
+            ]
         }
         // Other categories
     }
