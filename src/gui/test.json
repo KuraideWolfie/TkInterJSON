@@ -193,6 +193,14 @@
                         "values" : [ "Matthew", "Joshua", "Brandon", "Jonathan", "Randy", "Evan" ]
                     }
                 }
+            ],
+            "textboxes" : [
+                {
+                    "name" : "txtTest",
+                    "geoMode" : "pack",
+                    "geoOptions" : { "side" : "bottom" },
+                    "options" : { "textvariable" : { "name" : "txtTestVar", "type" : "StringVar", "value" : "SomeFuk" } }
+                }
             ]
         }
     }

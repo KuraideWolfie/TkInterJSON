@@ -5,6 +5,7 @@ import json
 import types
 
 GEOMETRY_MODES = [ 'place', 'pack', 'grid', 'none' ]
+VARIABLES = { "StringVar" : tkinter.StringVar, "IntVar" : tkinter.IntVar, "DoubleVar" : tkinter.DoubleVar, "BooleanVar" : tkinter.BooleanVar, "Variable" : tkinter.Variable }
 TK = None
 
 class Menu():
@@ -87,7 +88,7 @@ class WidgetCollection():
         + `geoMode` The geometry mode to use on the widget -- one of 'place', 'grid', 'pack', or 'none'
         + `geoOptions` The geometry options to supply the geometry functions
         + `options` The options to use in construction of the widget. These are based on widget type
-        + `state` The state to set the widget to
+        + `state` The state to set the widget to -- a list of options
 
         The default geometry mode is 'none', which means that no geometry functions are called. The 'none'
         option is useful for widgets like Menus, etc.
@@ -495,6 +496,7 @@ class Window():
         + `options` is name-based parameters passed to the widget's constructor
         + `state` is values to manipulate the widget's state to (such as 'readonly' for comboboxes)
         + `paneOptions` [optional] is named-based parameters given to PanedWindow's add function
+        + `values` [optional] is a list of string entries defining a Combobox's selectable values
         + `strokes` [optional] is a list of dictionaries specifying stroke information for a Canvas
           + Form: `{ "type" : "", "unnamed" : [ ], "named" : { "tags" : [ ] } }`
           + Where:
@@ -503,7 +505,9 @@ class Window():
             + `named` is name-based parameters passed to `create_*`
 
         Widget categories are any type of widget defined by tkinter, including Button and Frame. The
-        specification of these categories is simple -- in example: `'buttons': [ ... ]`
+        specification of these categories is simple -- in example: `'buttons': [ ... ]`. Any instance
+        of 'variable' specified in the widget's options will be generated according to the name, type,
+        and default value provided, as so: `{ "type" : "", "name" : "", "value" : <some value> }`
 
         Keyword arguments:
         + `widgets` The collection of widgets to add to this window
@@ -538,6 +542,21 @@ class Window():
             else:
               raise Exception(f"No command with the name '{widget['options']['command']}' exists for this window.")
 
+        # Comb over the options and make variable replacements. If a variable already exists, it gets
+        # used over creating a new variable
+        for option in widget['options']:
+          if 'variable' in option:
+            global VARIABLES
+
+            if widget['options'][option]['type'] in VARIABLES:
+              if not self.hasVariable(widget['options'][option]['name']):
+                self.addVariable(widget['options'][option]['name'], VARIABLES[widget['options'][option]['type']],
+                  default = widget['options'][option]['value'] if 'value' in widget['options'][option] else None)
+
+              widget['options'][option] = self.getVariable(widget['options'][option]['name'])
+            else:
+              raise Exception(f"The provided variable type {widget['options'][option]['type']} is invalid.")
+
         # Add the widget
         wid = self.__dict__[category].addWidget(
           widget['name'],
@@ -547,6 +566,11 @@ class Window():
           widget['options'],
           widget['state'] if 'state' in widget else None
         )
+
+        # Add listbox options
+        if 'listbox' == wid.__class__.__name__.lower():
+          if 'values' in widget and widget['values'].__class__.__name__ in ['tuple', 'list']:
+            wid.insert('end', *widget['values'])
 
         # Add the widget to the panedwindow if the parent is a PanedWindow
         if 'PanedWindow' == widget['root'].__class__.__name__: widget['root'].add(wid, **(widget['paneOptions'] if 'paneOptions' in widget else {}))
