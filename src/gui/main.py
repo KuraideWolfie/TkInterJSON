@@ -1,5 +1,6 @@
 import tkinter
 from tkinter import messagebox
+from tkinter import ttk
 import json
 import types
 
@@ -75,7 +76,7 @@ class WidgetCollection():
     else:
       raise Exception(f"No widget with the name '{name}' exists in this window.")
 
-  def addWidget(self, name, root=None, geoMode='none', geoOptions={}, options={}):
+  def addWidget(self, name, root=None, geoMode='none', geoOptions={}, options={}, state=None):
     """
         Adds a widget to the widget collection, registering the appropriate parent and toggling
         geometry options for the widget.
@@ -86,6 +87,7 @@ class WidgetCollection():
         + `geoMode` The geometry mode to use on the widget -- one of 'place', 'grid', 'pack', or 'none'
         + `geoOptions` The geometry options to supply the geometry functions
         + `options` The options to use in construction of the widget. These are based on widget type
+        + `state` The state to set the widget to
 
         The default geometry mode is 'none', which means that no geometry functions are called. The 'none'
         option is useful for widgets like Menus, etc.
@@ -114,6 +116,10 @@ class WidgetCollection():
         self.widgets[name].pack(**geoOptions)
     elif mode == 'grid':
         self.widgets[name].grid(**geoOptions)
+    
+    # Modify the state
+    if state and state.__class__.__name__ in ['list', 'tuple']:
+      self.widgets[name].state(state)
 
     return self.widgets[name]
 
@@ -280,6 +286,7 @@ class Window():
     self.variables = { }
     self.manager = None
 
+    self.messageboxes = messagebox
     self.buttons = WidgetCollection(self.gui, tkinter.Button)
     self.canvases = WidgetCollection(self.gui, tkinter.Canvas)
     self.checkbuttons = WidgetCollection(self.gui, tkinter.Checkbutton)
@@ -298,7 +305,13 @@ class Window():
     self.spinboxes = WidgetCollection(self.gui, tkinter.Spinbox)
     self.panes = WidgetCollection(self.gui, tkinter.PanedWindow)
     self.labelframes = WidgetCollection(self.gui, tkinter.LabelFrame)
-    self.messageboxes = messagebox
+    self.progressbars = WidgetCollection(self.gui, ttk.Progressbar)
+    self.comboboxes = WidgetCollection(self.gui, ttk.Combobox)
+    self.labelscales = WidgetCollection(self.gui, ttk.LabeledScale)
+    self.spinboxes = WidgetCollection(self.gui, ttk.Spinbox)
+    self.treeviews = WidgetCollection(self.gui, ttk.Treeview)
+    self.sizegrips = WidgetCollection(self.gui, ttk.Sizegrip)
+    self.tabbedpane = WidgetCollection(self.gui, ttk.Notebook)
 
     self.gui.geometry(f"{width}x{height}")
     self.gui.title(title)
@@ -474,12 +487,13 @@ class Window():
         Accepts a dictionary of (widget category, widget list) pairs that will be sequentially
         added to this Window. Widgets are specified using the given sample below:
 
-        `{ "name" : "", "root" : "", "geoMode": "", "geoOptions": {}, "options": {} }`
+        `{ "name" : "", "root" : "", "geoMode": "", "geoOptions": {}, "options": {}, "state" : [] }`
 
         Where:
         + `geoMode` is one of the three geometry function names, or 'none' for no placement
           + Function names: `place`, `pack`, and `grid`
         + `options` is name-based parameters passed to the widget's constructor
+        + `state` is values to manipulate the widget's state to (such as 'readonly' for comboboxes)
         + `paneOptions` [optional] is named-based parameters given to PanedWindow's add function
         + `strokes` [optional] is a list of dictionaries specifying stroke information for a Canvas
           + Form: `{ "type" : "", "unnamed" : [ ], "named" : { "tags" : [ ] } }`
@@ -530,7 +544,8 @@ class Window():
           widget['root'],
           widget['geoMode'],
           widget['geoOptions'],
-          widget['options']
+          widget['options'],
+          widget['state'] if 'state' in widget else None
         )
 
         # Add the widget to the panedwindow if the parent is a PanedWindow

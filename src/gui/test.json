@@ -180,6 +180,19 @@
                         { "type" : "rectangle", "unnamed" : [ 12, 12, 20, 20 ], "named" : { "fill" : "red" } }
                     ]
                 }
+            ],
+            "comboboxes" : [
+                {
+                    "name" : "comTest",
+                    "geoMode" : "pack",
+                    "state" : [ "readonly" ],
+                    "geoOptions" : {
+                        "side" : "right"
+                    },
+                    "options" : {
+                        "values" : [ "Matthew", "Joshua", "Brandon", "Jonathan", "Randy", "Evan" ]
+                    }
+                }
             ]
         }
     }
