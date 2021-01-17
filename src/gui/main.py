@@ -103,25 +103,23 @@ class Window():
     
     return self
 
-  def addMenuRaw(self, name, options={ 'tearoff': 0 }, children={}):
+  def addMenuRaw(self, name, options={ 'tearoff': 0 }, children=[]):
     """
         Generates a menu for the GUI window based off of a name, set of options, and series of
-        defined children elements. The children collection may be a dictionary of key-value pairs,
-        where the key is the name of the child, and the value is the child's data, or it may be a
-        list of values that are the children widgets themselves.
-
-        Child Template: `{ 'type': '', 'label': '', 'options': {}, 'children': [] }`
-        + Bear in mind, `'tearoff': 0` may need to be specified as an option, i.e. for cascades
-        + Bear in mind, valid entries for `type` are the same as those in add_* functions for menus
-
-        Entries in the collection of children may, instead of being defined as dictionaries above,
-        be defined as Menu instances in the module, which are converted in-method using Menu's
-        `asDict()` function.
-
-        Commands don't need to specifically be specified as function pointers in the children or
-        menu options. They can, instead, be string names that refer to any command added to the
-        window (though this isn't recommended due to potential memory issues). Make note that if
-        a command doesn't exist, however, with the given name that an exception will be raised
+        defined children elements. There are two methods for specifying a menu...
+        1. Define a Menu instance, providing the name, type as `''`, label as `''`, options, and
+           a list of children Menu instances with defined types/labels
+        2. Define a raw JSON-formatted string of the given form, as used in `buildRaw()`:
+          + ```{ "type" : "", "label" : "", "options": { }, "children" : { }```
+          + Where:
+            + `type` is a valid Menu type -- `cascade`, `command`, `separator`, `checkbutton`, `radiobutton`
+            + `label` is the string to show for the entry on the menu
+            + `options` is the named values passed to the `add_*` functions for a menu
+              + Bear in mind that `"tearoff" : 0` is optimal to include with `cascade` types
+              + Defining commands for menu entries doesn't necessarily have to be function pointers.
+                Instead, string names representing commands added to the Window may also be used
+            + `children` is a dictionary of name-data pairs of the same, above-defined form, or a
+              list of children that are also Menu instances
 
         Keyword arguments:
         + `name` The name of the menu to be generated for the window
@@ -242,18 +240,21 @@ class Window():
   def addWidgets(self, widgets):
     """
         Accepts a dictionary of (widget category, widget list) pairs that will be sequentially
-        added to this Window. Widgets are specified using the given sample below.
+        added to this Window. Widgets are specified using the given sample below:
 
-        Sample: `{ 'name' : '', 'geoMode': '', 'geoOptions': {}, 'options': {} }`
-        + `geoMode` is one of the three geometry functions, or 'none' for no placement to be done
-        + `options` is any collection of key-value pairs that would be passed to a widget constructor
-        + `paneOptions` (optional) is a collection of key-value pairs for usage in `PanedWindow.add()`
-        for the widget
-        + `strokes` (optional) is a list of dictionary specifying stroke information for a `Canvas`
-          + Sample: `{ "type" : '', "unnamed" : [ ], "named" : { "tags" : [ ] } }`
-            + `type` is any acceptable type of canvas graphic
-            + `unnamed` is a list of parameters passed to the `create_*()` functions before named parameters
-            + `named` is a dictionary of key-value pairs passed to the `create_*()` functions
+        `{ "name" : "", "root" : "", "geoMode": "", "geoOptions": {}, "options": {} }`
+
+        Where:
+        + `geoMode` is one of the three geometry function names, or 'none' for no placement
+          + Function names: `place`, `pack`, and `grid`
+        + `options` is name-based parameters passed to the widget's constructor
+        + `paneOptions` [optional] is named-based parameters given to PanedWindow's add function
+        + `strokes` [optional] is a list of dictionaries specifying stroke information for a Canvas
+          + Form: `{ "type" : "", "unnamed" : [ ], "named" : { "tags" : [ ] } }`
+          + Where:
+            + `type` is any acceptable type of Canvas graphic, denoted by `create_*` functions
+            + `unnamed` is a list of unnamed parameters passed at the front of the `create_*` functions
+            + `named` is name-based parameters passed to `create_*`
 
         Widget categories are any type of widget defined by tkinter, including Button and Frame. The
         specification of these categories is simple -- in example: `'buttons': [ ... ]`
@@ -447,12 +448,20 @@ class Window():
   @staticmethod
   def buildRaw(raw=''):
     """ 
-        Builds a Window from raw text in JSON format:
-        1. Registers raw code commands -- that is, Python code stored as strings in JSON
-        2. Generates and places widgets, assigning the appropriate parents based on name
-        3. Generates the menu for the Window
+        Builds a Window from JSON-formatted text. In the simplest form, this format should be:
 
-        An example of JSON-formatted design is available in `sample.json`.
+        ```
+        { "win" : { "width" : 480, "height" : 320, "title" : "", "icon" : "" },
+          "commands" : { "sample" : "print(\"Hello\")" },
+          "menu" : { "name" : "", "options" : { "tearoff" : 0 }, "children" : { } },
+          "widgets" : { } }
+        ```
+
+        Where:
+        + `win` specifies the width, height, title, and icon filepath for the Window
+        + `commands` is a set of name-code pairs, where code is Python code separated by line with \\n
+        + `menu` is the entire structure of the 'File' menu at the top of the window,
+        + `widgets` is a dictionary of category-widgetlist pairs for adding widgets to the Window
 
         Keyword arguments:
         + `raw` Raw JSON-formatted string that contains window, menu, command, and widget properties
@@ -464,87 +473,15 @@ class Window():
     else:
       dic = json.loads(raw)
 
-      # Generate window with base properties
-      win = Window(dic['win']['width'], dic['win']['height'], dic['win']['title'])
-      win.setIcon(dic['win']['icon'] if 'icon' in dic['win'] else None)
+      return Window(dic['win']['width'], dic['win']['height'], dic['win']['title']) \
+        .setIcon(dic['win']['icon'] if 'icon' in dic['win'] else None) \
+        .addCommandsRaw([(k, dic['commands'][k]) for k in dic['commands']]) \
+        .addMenu(Menu(dic['menu']['name'], '', '', dic['menu']['options'], dic['menu']['children'])) \
+        .addWidgets(dic['widgets'])
 
-      # Register commands
-      for com in dic['commands']:
-        win.addCommandRaw(com, dic['commands'][com])
-
-      # Generate widgets
-      for category in dic['widgets']:
-        if not category in win.categories:
-          raise Exception(f"The category '{category}' is not valid for widgets.")
-
-        for widget in dic['widgets'][category]:
-          info = dic['widgets'][category][widget]
-
-          # Attempt to locate the parent widget for this widget
-          if 'root' in info and info['root']:
-            if 'str' in str(type(info['root'])):
-              for searchCategory in dic['widgets']:
-                if win.__dict__[searchCategory].hasWidget(info['root']):
-                  info['root'] = win.__dict__[searchCategory].getWidget(info['root'])
-              
-              if 'str' in str(type(info['root'])):
-                raise Exception(f"A widget with the name \"{info['root']}\" could not be located.")
-          else:
-            info['root'] = None
-          
-          # Attempt to locate the command, if specified
-          if 'command' in info['options'] and info['options']['command']:
-            if 'str' in str(type(info['options']['command'])):
-              if win.hasCommand(info['options']['command']):
-                info['options']['command'] = win.getCommand(info['options']['command'])
-              else:
-                raise Exception(f"There is no command named '{info['options']['command']}'")
-
-          wid = win.__dict__[category].addWidget(
-            widget,
-            info['root'],
-            info['geoMode'],
-            info['geoOptions'],
-            info['options']
-          )
-
-          # Add the widget to the panedwindow if the parent is a PanedWindow
-          if 'PanedWindow' == info['root'].__class__.__name__: info['root'].add(wid, **(info['paneOptions'] if 'paneOptions' in info else {}))
-
-          # Take care of canvas painting
-          if category == 'canvases':
-            canvas : tkinter.Canvas = win.canvases.getWidget(widget)
-            types = {
-              'line' : canvas.create_line,
-              'rectangle' : canvas.create_rectangle,
-              'oval' : canvas.create_oval,
-              'polygon' : canvas.create_polygon,
-              'arc' : canvas.create_arc,
-              'image' : canvas.create_image,
-              'text' : canvas.create_text
-            }
-
-            for stroke in info['strokes']:
-              # Perform the stroke using unnamed and named properties
-              if stroke['type'] in types:
-                obj = types[stroke['type']](*stroke['unnamed'], **(stroke['named'] if 'named' in stroke else {}))
-              elif stroke['type'] == 'widget':
-                # TODO Generate a new widget and associate with the canvas using create_image()
-                pass
-              else:
-                raise Exception(f"Invalid stroke type provided: '{stroke['type']}'.")
-
-          # TODO Event bindings for canvas children
-          # TODO Modify canvas children using configure -- https://tkdocs.com/tutorial/canvas.html > Modifying Items
-          # TODO Event bindings in BUILD and ADDEVENTS func, for window + widgets
-          # TODO Simplify buildRaw and addWidgets with a single helper function
-      
-      # Generate menu
-      for mName in dic['menus']:
-        menu = dic['menus'][mName]
-        win.addMenuRaw(mName, options=menu['options'], children=menu['children'])
-
-      return win
+      # TODO Event bindings for canvas children
+      # TODO Modify canvas children using configure -- https://tkdocs.com/tutorial/canvas.html > Modifying Items
+      # TODO Event bindings in BUILD and ADDEVENTS func, for window + widgets
 
 class WidgetCollection():
   """
