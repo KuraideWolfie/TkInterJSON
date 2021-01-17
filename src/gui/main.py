@@ -224,7 +224,26 @@ class WindowManager():
       return None
   
   @staticmethod
-  def build(raw=''):
+  def build(dic):
+    """
+        Builds a WindowManager from a dictionary of name-window entries, where each window is a
+        dictionary of information that `Window.build()` can parse.
+
+        Keyword arguments:
+        + `dic` The dictionary of name-windowdict pairs
+
+        Returns: The WindowManager generated from the dictionary
+    """
+
+    man = WindowManager()
+
+    for win in sorted(dic):
+      man.createWindow(win, dic[win])
+
+    return man
+
+  @staticmethod
+  def buildRaw(raw=''):
     """
         Builds a WindowManager from raw, JSON-formatted text. The format should be a dictionary of
         name-Window pairs, where 'Window' is JSON-formatted text that `Window.build()` can parse.
@@ -241,7 +260,6 @@ class WindowManager():
       man = WindowManager()
 
       for win in sorted(dic):
-        print(win)
         man.createWindow(win, dic[win])
 
       return man
@@ -697,6 +715,23 @@ class Window():
     for name, com in comList: self.addCommandRaw(name, com)
     return self
   
+  def addCommandsMixed(self, comList):
+    """
+        Wrapper for executing multiple calls to both `addCommandRaw()` and `addCommand()`.
+
+        Keyword arguments:
+        + `comList` A list of (name, code string or function) pairs
+
+        Returns: Self for chaining
+    """
+
+    for name, com in comList:
+      if 'str' == com.__class__.__name__:
+        self.addCommandRaw(name, com)
+      else:
+        self.addCommand(name, com)
+    return self
+  
   def show(self):
     """
         Shows the window
@@ -743,25 +778,30 @@ class Window():
         + `title` The title text for the window
         + `icon` The filepath of the icon to be used for the window
         + `menu` A Menu instance for adding a menu to the window, or None for no menu
-        + `com` The list of (name, function) pairs to associate with the window
+        + `com` The list of (name, function|code) pairs to associate with the window
         + `widgets` The dictionary of (category, widgetlist) pairs for adding widgets
 
         Returns: The Window built using the given parameters
     """
 
-    return Window(width, height, title).setIcon(icon).addMenu(menu).addCommands(com).addWidgets(widgets)
+    return Window(width, height, title).setIcon(icon).addCommandsMixed(com).addMenu(menu).addWidgets(widgets)
 
   @staticmethod
   def buildFromDict(dic=None):
     if not dic: return None
     else:
-      return Window(dic['win']['width'], dic['win']['height'], dic['win']['title']) \
-        .setIcon(dic['win']['icon'] if 'icon' in dic['win'] else None) \
-        .addCommandsRaw([(k, dic['commands'][k]) for k in dic['commands']]) \
-        .addMenu(
-          Menu(dic['menu']['name'], '', '', dic['menu']['options'], dic['menu']['children'])
-          if 'menu' in dic else None) \
-        .addWidgets(dic['widgets'])
+      return Window.build(
+        dic['win']['width'],
+        dic['win']['height'],
+        dic['win']['title'],
+        dic['win']['icon']
+          if 'icon' in dic['win'] else None,
+        Menu(dic['menu']['name'], '', '', dic['menu']['options'], dic['menu']['children'])
+          if 'menu' in dic else None,
+        [(k, dic['commands'][k]) for k in dic['commands']]
+          if 'commands' in dic else [],
+        dic['widgets']
+      )
 
   @staticmethod
   def buildRaw(raw=''):
