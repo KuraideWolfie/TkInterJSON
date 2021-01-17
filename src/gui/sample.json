@@ -34,8 +34,9 @@
         }
     },
     "widgets": {
-        "buttons" : {
-            "btnTest" : {
+        "buttons" : [
+            {
+                "name" : "btnTest",
                 "root" : "",
                 "geoMode" : "place",
                 "geoOptions" : {
@@ -48,20 +49,22 @@
                     "command" : "sample"
                 }
             }
-        },
-        "canvases" : {
-            // root, geoMode, geoOptions, options
-            "strokes" : [
-                {
-                    "type" : "line",
-                    "unnamed" : [ 4, 4, 4, 8, 8, 8, 8, 4 ],
-                    "named" : {
-                        "tags" : [ ]
-                        // Other properties
+        ],
+        "canvases" : [
+            {
+                // name, root, geoMode, geoOptions, options
+                "strokes" : [
+                    {
+                        "type" : "line",
+                        "unnamed" : [ 4, 4, 4, 8, 8, 8, 8, 4 ],
+                        "named" : {
+                            "tags" : [ ]
+                            // Other properties
+                        }
                     }
-                }
-            ]
-        }
+                ]
+            }
+        ]
         // Other categories
     }
 }
