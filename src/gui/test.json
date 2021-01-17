@@ -1,157 +1,186 @@
 {
-    "win" : {
-        "width"  : 480,
-        "height" : 320,
-        "title" : "PUI Test",
-        "icon" : "./src/gui/icon.png"
-    },
-    "commands" : {
-        "test" : "print(\"Hello\")\nself.messageboxes.showinfo(\"Test\", \"Show me!\")"
-    },
-    "menu": {
-        "name" : "mnuMain",
-        "options": {
-            "tearoff" : 0
+    "winB" : {
+        "win" : {
+            "width" : 320,
+            "height" : 160,
+            "title" : "PUI Test 2"
         },
-        "children" : {
-            "mnuMain_File" : {
-                "type" : "cascade",
-                "label" : "File",
-                "options" : {
-                    "tearoff" : 0
-                },
-                "children" : {
-                    "mnuMain_File_New" : {
-                        "type" : "command",
-                        "label" : "New",
-                        "options" : {
-                            "command" : "test"
-                        }
+        "commands" : {
+            "clicky" : "self.variables['click'] = 1 if not 'click' in self.variables else self.variables['click']+1\nself.manager.getWindow(\"winA\").labels.getWidget(\"lblOne\").configure({\"text\":f\"{self.variables['click']}\"})"
+        },
+        "widgets" : {
+            "buttons" : [
+                {
+                    "name" : "sampleButton",
+                    "geoMode" : "pack",
+                    "geoOptions" : {
+                        "fill" : "both",
+                        "expand" : 1
                     },
-                    "mnuMain_File_Sep1" : { "type" : "separator" },
-                    "mnuMain_File_Exit" : {
-                        "type" : "command",
-                        "label" : "Exit!",
-                        "options" : {
-                            "command" : "test"
-                        }
+                    "options" : {
+                        "text" : "Click Me!",
+                        "command" : "clicky"
                     }
                 }
+            ]
+        }
+    },
+    "winA" : {
+        "win" : {
+            "width"  : 480,
+            "height" : 320,
+            "title" : "PUI Test",
+            "icon" : "./src/gui/icon.png"
+        },
+        "commands" : {
+            "test" : "self.manager.getWindow(\"winB\").show()",
+            "test2" : "self.manager.getWindow(\"winB\").hide()"
+        },
+        "menu": {
+            "name" : "mnuMain",
+            "options": {
+                "tearoff" : 0
             },
-            "mnuMain_Test" : {
-                "type" : "cascade",
-                "label" : "Test",
-                "options" : {
-                    "tearoff" : 0
-                },
-                "children" : {
-                    "mnuMain_Test_Check" : {
-                        "type" : "checkbutton",
-                        "label" : "Checky",
-                        "options" : {
-                            "isOn" : false,
-                            "onvalue" : 1,
-                            "offvalue" : 0,
-                            "variable" : "mtcVariable"
-                        }
+            "children" : {
+                "mnuMain_File" : {
+                    "type" : "cascade",
+                    "label" : "File",
+                    "options" : {
+                        "tearoff" : 0
                     },
-                    "mnuMain_Test_Radio" : {
-                        "type" : "radiobutton",
-                        "label" : "Rady",
-                        "options" : {
-                            "value" : 30.2,
-                            "variable" : "mtrVariable",
-                            "command" : "test"
-                        }
-                    },
-                    "mnuMain_Test_Cascade" : {
-                        "type" : "cascade",
-                        "label" : "Cascade Test",
-                        "options" : {
-                            "tearoff" : 0
+                    "children" : {
+                        "mnuMain_File_New" : {
+                            "type" : "command",
+                            "label" : "New",
+                            "options" : {
+                                "command" : "test"
+                            }
                         },
-                        "children" : {
-                            "mnuMain_Test_Cascade_Sep1" : {
-                                "type" : "separator"
+                        "mnuMain_File_Sep1" : { "type" : "separator" },
+                        "mnuMain_File_Exit" : {
+                            "type" : "command",
+                            "label" : "Exit!",
+                            "options" : {
+                                "command" : "test"
+                            }
+                        }
+                    }
+                },
+                "mnuMain_Test" : {
+                    "type" : "cascade",
+                    "label" : "Test",
+                    "options" : {
+                        "tearoff" : 0
+                    },
+                    "children" : {
+                        "mnuMain_Test_Check" : {
+                            "type" : "checkbutton",
+                            "label" : "Checky",
+                            "options" : {
+                                "isOn" : false,
+                                "onvalue" : 1,
+                                "offvalue" : 0,
+                                "variable" : "mtcVariable"
+                            }
+                        },
+                        "mnuMain_Test_Radio" : {
+                            "type" : "radiobutton",
+                            "label" : "Rady",
+                            "options" : {
+                                "value" : 30.2,
+                                "variable" : "mtrVariable",
+                                "command" : "test"
+                            }
+                        },
+                        "mnuMain_Test_Cascade" : {
+                            "type" : "cascade",
+                            "label" : "Cascade Test",
+                            "options" : {
+                                "tearoff" : 0
+                            },
+                            "children" : {
+                                "mnuMain_Test_Cascade_Sep1" : {
+                                    "type" : "separator"
+                                }
                             }
                         }
                     }
                 }
             }
+        },
+        "widgets": {
+            "frames" : [
+                {
+                    "name" : "frmOne",
+                    "geoMode" : "pack",
+                    "geoOptions" : {
+                    },
+                    "options" : {
+                    }
+                }
+            ],
+            "buttons" : [
+                {
+                    "name" : "btnOne",
+                    "geoMode" : "place",
+                    "geoOptions" : {
+                        "x" : 16,
+                        "y" : 32
+                    },
+                    "options" : {
+                        "text" : "test",
+                        "width" : 10,
+                        "height" : 10,
+                        "command" : "test"
+                    }
+                },
+                {
+                    "name" : "frmOne_btnOne",
+                    "root" : "frmOne",
+                    "geoMode" : "pack",
+                    "geoOptions" : {
+                        "side" : "left"
+                    },
+                    "options" : {
+                        "text" : "test 2",
+                        "fg" : "blue",
+                        "command" : "test2"
+                    }
+                }
+            ],
+            "labels": [
+                {
+                    "name" : "lblOne",
+                    "geoMode" : "place",
+                    "geoOptions" : {
+                        "x" : 48,
+                        "y" : 32
+                    },
+                    "options": {
+                        "text" : "I'm a label",
+                        "fg" : "red"
+                    }
+                }
+            ],
+            "canvases" : [
+                {
+                    "name" : "canTest",
+                    "geoMode" : "place",
+                    "geoOptions" : {
+                        "x" : 200,
+                        "y" : 100
+                    },
+                    "options" : {
+                        "width" : 128,
+                        "height" : 64
+                    },
+                    "strokes" : [
+                        { "type" : "line", "unnamed" : [ 4, 4, 124, 4, 124, 60, 4, 60, 4, 4 ], "named" : { "arrow" : "last", "tags" : [ "example" ] } },
+                        { "type" : "oval", "unnamed" : [ 10, 10, 40, 40 ] },
+                        { "type" : "rectangle", "unnamed" : [ 12, 12, 20, 20 ], "named" : { "fill" : "red" } }
+                    ]
+                }
+            ]
         }
-    },
-    "widgets": {
-        "frames" : [
-            {
-                "name" : "frmOne",
-                "geoMode" : "pack",
-                "geoOptions" : {
-                },
-                "options" : {
-                }
-            }
-        ],
-        "buttons" : [
-            {
-                "name" : "btnOne",
-                "geoMode" : "place",
-                "geoOptions" : {
-                    "x" : 16,
-                    "y" : 32
-                },
-                "options" : {
-                    "text" : "test",
-                    "width" : 10,
-                    "height" : 10,
-                    "command" : "test"
-                }
-            },
-            {
-                "name" : "frmOne_btnOne",
-                "root" : "frmOne",
-                "geoMode" : "pack",
-                "geoOptions" : {
-                    "side" : "left"
-                },
-                "options" : {
-                    "text" : "test 2",
-                    "fg" : "blue",
-                    "command" : "test"
-                }
-            }
-        ],
-        "labels": [
-            {
-                "name" : "lblOne",
-                "geoMode" : "place",
-                "geoOptions" : {
-                    "x" : 48,
-                    "y" : 32
-                },
-                "options": {
-                    "text" : "I'm a label",
-                    "fg" : "red"
-                }
-            }
-        ],
-        "canvases" : [
-            {
-                "name" : "canTest",
-                "geoMode" : "place",
-                "geoOptions" : {
-                    "x" : 200,
-                    "y" : 100
-                },
-                "options" : {
-                    "width" : 128,
-                    "height" : 64
-                },
-                "strokes" : [
-                    { "type" : "line", "unnamed" : [ 4, 4, 124, 4, 124, 60, 4, 60, 4, 4 ], "named" : { "arrow" : "last", "tags" : [ "example" ] } },
-                    { "type" : "oval", "unnamed" : [ 10, 10, 40, 40 ] },
-                    { "type" : "rectangle", "unnamed" : [ 12, 12, 20, 20 ], "named" : { "fill" : "red" } }
-                ]
-            }
-        ]
     }
 }

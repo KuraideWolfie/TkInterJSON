@@ -4,6 +4,7 @@ import json
 import types
 
 GEOMETRY_MODES = [ 'place', 'pack', 'grid', 'none' ]
+TK = None
 
 class Menu():
   """
@@ -24,6 +25,219 @@ class Menu():
   
   def asDict(self):
     return { 'type' : self.mType, 'label' : self.label, 'options' : self.options, 'children' : self.children }
+
+class WidgetCollection():
+  """
+      WidgetCollection represents a set of widgets that are all of the same class. It bundles
+      up the creation of widgets, placement of them, and reconfiguration. For example, a
+      WidgetCollection may handle all instances of tkinter.Button.
+
+      Actions:
+      + Check for widgets using `hasWidget()`
+      + Get widgets and metadata using `getWidget()` and `getMeta()`
+      + Add a new widget of the collection's type using `addWidget()`
+      + Reconfigure widget properties using `configure()`
+  """
+
+  def __init__(self, _parent, _class):
+    self.widgets = { }
+    self.meta = { }
+    self._parent = _parent
+    self._class = _class
+
+  def hasWidget(self, name): return name in self.widgets
+
+  def hasMeta(self, name): return name in self.meta
+
+  def getWidget(self, name): return None if not self.hasWidget(name) else self.widgets[name]
+
+  def getMeta(self, name):
+    """
+        Gets metadata for a widget in the collection.
+
+        Keyword arguments:
+        + `name` The name of the widget to fetch metadata for
+
+        Returns: None if metadata doesn't exist or the widget isn't found, or stored metadata if found
+    """
+
+    if self.hasWidget(name):
+      if name in self.meta:
+        return self.meta[name]
+      else:
+        return None
+    else:
+      return None
+  
+  def setMeta(self, name, meta):
+    if self.hasWidget(name):
+      self.meta[name] = meta
+    else:
+      raise Exception(f"No widget with the name '{name}' exists in this window.")
+
+  def addWidget(self, name, root=None, geoMode='none', geoOptions={}, options={}):
+    """
+        Adds a widget to the widget collection, registering the appropriate parent and toggling
+        geometry options for the widget.
+
+        Keyword arguments:
+        + `name` The name of the widget
+        + `root` The parent of the widget -- None for the window, or another widget
+        + `geoMode` The geometry mode to use on the widget -- one of 'place', 'grid', 'pack', or 'none'
+        + `geoOptions` The geometry options to supply the geometry functions
+        + `options` The options to use in construction of the widget. These are based on widget type
+
+        The default geometry mode is 'none', which means that no geometry functions are called. The 'none'
+        option is useful for widgets like Menus, etc.
+
+        Returns: The widget after its construction and geometry creation
+    """
+
+    # Raise an exception if an invalid geometry mode is selected
+    # Raise an exception if the widget name already exists
+    if not geoMode.lower() in GEOMETRY_MODES:
+      raise Exception(f"Geometry mode {geoMode} is not valid mode. Valid: {GEOMETRY_MODES}")
+
+    if not name in self.widgets:
+      if self._class == tkinter.Toplevel:
+        self.widgets[name] = self._class(**options)
+      else:
+        self.widgets[name] = self._class(root if root else self._parent, **options)
+    else:
+      raise Exception(f"Widget {str(self._class).split(' ')[1][:-1]}, Name '{name}' already exists")
+
+    # Execute the proper geometry function based on the mode selected and given geometry options
+    mode = geoMode.lower()
+    if mode == 'place':
+        self.widgets[name].place(**geoOptions)
+    elif mode == 'pack':
+        self.widgets[name].pack(**geoOptions)
+    elif mode == 'grid':
+        self.widgets[name].grid(**geoOptions)
+
+    return self.widgets[name]
+
+  def deleteWidget(self, name):
+    """
+        Accepts a widget name, and deletes it.
+
+        Keyword arguments:
+        + `name` The name of the widget to be deleted
+
+        Returns: Self for chaining
+    """
+
+    if hasWidget(name):
+      wid = self.getWidget(name)
+
+      del self.widgets[name]
+      if name in self.meta: del self.meta[name]
+      wid.delete()
+    
+    return self
+  
+  def configure(self, name, **options):
+    """
+        Reconfigures a widget using the given options
+
+        Keyword arguments:
+        + `name` The name of the widget to configure
+        + `options` named set of arguments to pass to the widget's configure function
+
+        Returns: Self for chaining
+    """
+
+    if self.hasWidget(name): self.getWidget(name).configure(**options)
+    return self
+
+class WindowManager():
+  """
+      WindowManager is a simple class that collects together a series of windows. It
+      updates a window to refer to itself when added such that windows can intercommunicate
+      through their commands or other actions (such as a button on window 'A' changing the
+      text of a label on window 'B').
+  """
+
+  def __init__(self):
+    self.windows = { }
+  
+  def hasWindow(self, name): return name in self.windows
+
+  def getWindow(self, name): return None if not self.hasWindow(name) else self.windows[name]
+
+  def addWindow(self, name, win):
+    """
+        Adds a window to this manager under the given name.
+
+        Keyword arguments:
+        + `name` The name that will be used in reference to the window added
+        + `win` The Window instance to be associated with the name
+
+        Returns: Self for chaining
+    """
+
+    if not self.hasWindow(name):
+      self.windows[name] = win
+      win.setManager(self)
+    else:
+      raise Exception(f"A window named '{name}' already exists for this manager")
+    
+    return self
+  
+  def createWindow(self, name, win):
+    """
+        Adds a window to this manager from raw JSON-formatted text.
+
+        Keyword arguments:
+        + `name` The name to associate with the newly-built window
+        + `win` The raw JSON-formatted text representing the window to be added
+
+        Returns: Self for chaining
+    """
+
+    self.addWindow(name, Window.buildFromDict(win))
+    return self
+  
+  def removeWindow(self, name):
+    """
+        Removes a window from this manager.
+
+        Keyword arguments:
+        + `name` The name of the window to remove
+
+        Returns: The Window instance associated with `name`, or None if not found
+    """
+
+    if self.hasWindow(name):
+      win = self.getWindow(name)
+      win.setManager()
+      del self.windows[name]
+      return win
+    else:
+      return None
+  
+  @staticmethod
+  def build(raw=''):
+    """
+        Builds a WindowManager from raw, JSON-formatted text. The format should be a dictionary of
+        name-Window pairs, where 'Window' is JSON-formatted text that `Window.build()` can parse.
+
+        Keyword arguments:
+        + `raw` JSON-formatted text that can build a WindowManager
+
+        Returns: The manager built from the JSON
+    """
+
+    if not raw: return None
+    else:
+      dic = json.loads(raw)
+      man = WindowManager()
+
+      for win in sorted(dic):
+        print(win)
+        man.createWindow(win, dic[win])
+
+      return man
 
 class Window():
   """
@@ -50,10 +264,21 @@ class Window():
       once a variable is added, it may NOT be removed using the API.
   """
 
-  def __init__(self, width=480, height=320, title="PUI", icon="./src/gui/icon.png"):
-    self.gui = tkinter.Tk()
+  def __init__(self, width=480, height=320, title="PUI", icon=""):
+    # Instantiate TK root if not already created; otherwise, generate a Toplevel
+    global TK
+
+    if not TK:
+      TK = tkinter.Tk()
+      self.gui = TK
+    else:
+      self.gui = tkinter.Toplevel(TK)
+      self.hide()
+
+    # Instantiation of window
     self.guiIcon = None
     self.variables = { }
+    self.manager = None
 
     self.buttons = WidgetCollection(self.gui, tkinter.Button)
     self.canvases = WidgetCollection(self.gui, tkinter.Canvas)
@@ -87,7 +312,13 @@ class Window():
 
   def run(self): self.gui.mainloop()
 
-  def setIcon(self, icon="./src/gui/icon.png"):
+  def setManager(self, man=None):
+    if man.__class__.__name__ == 'WindowManager':
+      self.manager = man
+    else:
+      raise Exception("The provided parameter is not an instance of WindowManager.")
+
+  def setIcon(self, icon=""):
     """
         Sets the icon for the window. Does nothing if the provided argument is an empty string
 
@@ -98,6 +329,7 @@ class Window():
     """
 
     if icon:
+      print(f"'{icon}'")
       self.guiIcon = tkinter.PhotoImage(file=icon)
       self.gui.iconphoto(False, self.guiIcon)
     
@@ -425,6 +657,41 @@ class Window():
 
     for name, com in comList: self.addCommandRaw(name, com)
     return self
+  
+  def show(self):
+    """
+        Shows the window
+
+        Returns: Self for chaining
+    """
+
+    if self.gui.state() in ['iconic', 'icon', 'withdrawn']:
+      self.gui.deiconify()
+
+    return self
+  
+  def minimize(self):
+    """
+        Hides the window from the screen by minimizing it
+
+        Returns: Self for chaining
+    """
+
+    if not self.gui.state() in ['iconic', 'icon', 'withdrawn']:
+      self.gui.iconify()
+    
+    return self
+  
+  def hide(self):
+    """
+        Removes the window from the screen without destroying it, instead of minimizing to
+        an icon.
+
+        Returns: Self for chaining
+    """
+
+    self.gui.withdraw()
+    return self
 
   @staticmethod
   def build(width=480, height=320, title='PUI', icon=None, menu=None, com=[], widgets={}):
@@ -444,6 +711,18 @@ class Window():
     """
 
     return Window(width, height, title).setIcon(icon).addMenu(menu).addCommands(com).addWidgets(widgets)
+
+  @staticmethod
+  def buildFromDict(dic=None):
+    if not dic: return None
+    else:
+      return Window(dic['win']['width'], dic['win']['height'], dic['win']['title']) \
+        .setIcon(dic['win']['icon'] if 'icon' in dic['win'] else None) \
+        .addCommandsRaw([(k, dic['commands'][k]) for k in dic['commands']]) \
+        .addMenu(
+          Menu(dic['menu']['name'], '', '', dic['menu']['options'], dic['menu']['children'])
+          if 'menu' in dic else None) \
+        .addWidgets(dic['widgets'])
 
   @staticmethod
   def buildRaw(raw=''):
@@ -469,140 +748,8 @@ class Window():
         Returns: Window instance generated using the raw JSON string
     """
 
-    if not raw: return None
-    else:
-      dic = json.loads(raw)
-
-      return Window(dic['win']['width'], dic['win']['height'], dic['win']['title']) \
-        .setIcon(dic['win']['icon'] if 'icon' in dic['win'] else None) \
-        .addCommandsRaw([(k, dic['commands'][k]) for k in dic['commands']]) \
-        .addMenu(Menu(dic['menu']['name'], '', '', dic['menu']['options'], dic['menu']['children'])) \
-        .addWidgets(dic['widgets'])
+    return None if not raw else Window.buildFromDict(json.loads(raw))
 
       # TODO Event bindings for canvas children
       # TODO Modify canvas children using configure -- https://tkdocs.com/tutorial/canvas.html > Modifying Items
       # TODO Event bindings in BUILD and ADDEVENTS func, for window + widgets
-
-class WidgetCollection():
-  """
-      WidgetCollection represents a set of widgets that are all of the same class. It bundles
-      up the creation of widgets, placement of them, and reconfiguration. For example, a
-      WidgetCollection may handle all instances of tkinter.Button.
-
-      Actions:
-      + Check for widgets using `hasWidget()`
-      + Get widgets and metadata using `getWidget()` and `getMeta()`
-      + Add a new widget of the collection's type using `addWidget()`
-      + Reconfigure widget properties using `configure()`
-  """
-
-  def __init__(self, _parent, _class):
-    self.widgets = { }
-    self.meta = { }
-    self._parent = _parent
-    self._class = _class
-
-  def hasWidget(self, name): return name in self.widgets
-
-  def hasMeta(self, name): return name in self.meta
-
-  def getWidget(self, name): return None if not self.hasWidget(name) else self.widgets[name]
-
-  def getMeta(self, name):
-    """
-        Gets metadata for a widget in the collection.
-
-        Keyword arguments:
-        + `name` The name of the widget to fetch metadata for
-
-        Returns: None if metadata doesn't exist or the widget isn't found, or stored metadata if found
-    """
-
-    if self.hasWidget(name):
-      if name in self.meta:
-        return self.meta[name]
-      else:
-        return None
-    else:
-      return None
-  
-  def setMeta(self, name, meta):
-    if self.hasWidget(name):
-      self.meta[name] = meta
-    else:
-      raise Exception(f"No widget with the name '{name}' exists in this window.")
-
-  def addWidget(self, name, root=None, geoMode='none', geoOptions={}, options={}):
-    """
-        Adds a widget to the widget collection, registering the appropriate parent and toggling
-        geometry options for the widget.
-
-        Keyword arguments:
-        + `name` The name of the widget
-        + `root` The parent of the widget -- None for the window, or another widget
-        + `geoMode` The geometry mode to use on the widget -- one of 'place', 'grid', 'pack', or 'none'
-        + `geoOptions` The geometry options to supply the geometry functions
-        + `options` The options to use in construction of the widget. These are based on widget type
-
-        The default geometry mode is 'none', which means that no geometry functions are called. The 'none'
-        option is useful for widgets like Menus, etc.
-
-        Returns: The widget after its construction and geometry creation
-    """
-
-    # Raise an exception if an invalid geometry mode is selected
-    # Raise an exception if the widget name already exists
-    if not geoMode.lower() in GEOMETRY_MODES:
-      raise Exception(f"Geometry mode {geoMode} is not valid mode. Valid: {GEOMETRY_MODES}")
-
-    if not name in self.widgets:
-      if self._class == tkinter.Toplevel:
-        self.widgets[name] = self._class(**options)
-      else:
-        self.widgets[name] = self._class(root if root else self._parent, **options)
-    else:
-      raise Exception(f"Widget {str(self._class).split(' ')[1][:-1]}, Name '{name}' already exists")
-
-    # Execute the proper geometry function based on the mode selected and given geometry options
-    mode = geoMode.lower()
-    if mode == 'place':
-        self.widgets[name].place(**geoOptions)
-    elif mode == 'pack':
-        self.widgets[name].pack(**geoOptions)
-    elif mode == 'grid':
-        self.widgets[name].grid(**geoOptions)
-
-    return self.widgets[name]
-
-  def deleteWidget(self, name):
-    """
-        Accepts a widget name, and deletes it.
-
-        Keyword arguments:
-        + `name` The name of the widget to be deleted
-
-        Returns: Self for chaining
-    """
-
-    if hasWidget(name):
-      wid = self.getWidget(name)
-
-      del self.widgets[name]
-      if name in self.meta: del self.meta[name]
-      wid.delete()
-    
-    return self
-  
-  def configure(self, name, **options):
-    """
-        Reconfigures a widget using the given options
-
-        Keyword arguments:
-        + `name` The name of the widget to configure
-        + `options` named set of arguments to pass to the widget's configure function
-
-        Returns: Self for chaining
-    """
-
-    if self.hasWidget(name): self.getWidget(name).configure(**options)
-    return self
