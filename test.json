@@ -34,7 +34,13 @@
         },
         "commands" : {
             "test" : "self.manager.getWindow(\"winB\").show()",
-            "test2" : "self.manager.getWindow(\"winB\").hide()"
+            "test2" : "self.manager.getWindow(\"winB\").hide()",
+            "event" : "print(event.x, event.y)",
+            "event2" : "print(\"How dare!\")",
+            "event3" : "print(\"Oval!\")"
+        },
+        "events" : {
+            "<Button-1>" : [ "event" ]
         },
         "menu": {
             "name" : "mnuMain",
@@ -132,6 +138,9 @@
                         "width" : 10,
                         "height" : 10,
                         "command" : "test"
+                    },
+                    "events" : {
+                        "<Button-1>" : [ "event2" ]
                     }
                 },
                 {
@@ -176,7 +185,7 @@
                     },
                     "strokes" : [
                         { "type" : "line", "unnamed" : [ 4, 4, 124, 4, 124, 60, 4, 60, 4, 4 ], "named" : { "arrow" : "last", "tags" : [ "example" ] } },
-                        { "type" : "oval", "unnamed" : [ 10, 10, 40, 40 ] },
+                        { "type" : "oval", "unnamed" : [ 10, 10, 40, 40 ] , "events" : { "<Button-1>" : [ "event3" ] } },
                         { "type" : "rectangle", "unnamed" : [ 12, 12, 20, 20 ], "named" : { "fill" : "red" } }
                     ]
                 }

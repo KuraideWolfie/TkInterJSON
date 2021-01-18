@@ -77,7 +77,7 @@ class WidgetCollection():
     else:
       raise Exception(f"No widget with the name '{name}' exists in this window.")
 
-  def addWidget(self, name, root=None, geoMode='none', geoOptions={}, options={}, state=None):
+  def addWidget(self, name, root=None, geoMode='none', geoOptions={}, options={}, state=None, events={}):
     """
         Adds a widget to the widget collection, registering the appropriate parent and toggling
         geometry options for the widget.
@@ -89,9 +89,15 @@ class WidgetCollection():
         + `geoOptions` The geometry options to supply the geometry functions
         + `options` The options to use in construction of the widget. These are based on widget type
         + `state` The state to set the widget to -- a list of options
+        + `events` A set of (event, functionlist) pairs, where each function is a response to the provided event
 
         The default geometry mode is 'none', which means that no geometry functions are called. The 'none'
         option is useful for widgets like Menus, etc.
+        
+        Exceptions:
+        + If an invalid geomode is provided, an exception is raised.
+        + If the value of state is not None (default) or a list/tuple, an exception is raised.
+        + If one of the values of the function list for an event in events is not a function, an exception is raised.
 
         Returns: The widget after its construction and geometry creation
     """
@@ -117,10 +123,23 @@ class WidgetCollection():
         self.widgets[name].pack(**geoOptions)
     elif mode == 'grid':
         self.widgets[name].grid(**geoOptions)
+    elif mode != 'none':
+      raise Exception(f"The provided geoMode '{mode}' is not valid")
     
     # Modify the state
-    if state and state.__class__.__name__ in ['list', 'tuple']:
-      self.widgets[name].state(state)
+    if state:
+      if state.__class__.__name__ in ['list', 'tuple']:
+        self.widgets[name].state(state)
+      else:
+        raise Exception(f"The structure of the widget's state is invalid -- use a list or tuple")
+    
+    # Bind events
+    for ev in events:
+      for func in events[ev]:
+        if func.__class__.__name__ in [ 'function', 'method' ]:
+          self.widgets[name].bind(ev, func)
+        else:
+          raise Exception(f"'{func}' is not a function bindable to the widget")
 
     return self.widgets[name]
 
@@ -506,21 +525,31 @@ class Window():
         Accepts a dictionary of (widget category, widget list) pairs that will be sequentially
         added to this Window. Widgets are specified using the given sample below:
 
-        `{ "name" : "", "root" : "", "geoMode": "", "geoOptions": {}, "options": {}, "state" : [] }`
+        ```
+        {
+          "name" : "", "root" : "", "geoMode" : "",
+          "geoOptions" : { },
+          "options" : { },
+          "state" : [ ],
+          "events" : { }
+        }
+        ```
 
         Where:
         + `geoMode` is one of the three geometry function names, or 'none' for no placement
           + Function names: `place`, `pack`, and `grid`
         + `options` is name-based parameters passed to the widget's constructor
         + `state` is values to manipulate the widget's state to (such as 'readonly' for comboboxes)
+        + `events` is a dictionary of (event, function list) pairs for binding to the widget
         + `paneOptions` [optional] is named-based parameters given to PanedWindow's add function
         + `values` [optional] is a list of string entries defining a Combobox's selectable values
         + `strokes` [optional] is a list of dictionaries specifying stroke information for a Canvas
-          + Form: `{ "type" : "", "unnamed" : [ ], "named" : { "tags" : [ ] } }`
+          + Form: `{ "type" : "", "unnamed" : [ ], "named" : { "tags" : [ ] }, "events" : { } }`
           + Where:
             + `type` is any acceptable type of Canvas graphic, denoted by `create_*` functions
             + `unnamed` is a list of unnamed parameters passed at the front of the `create_*` functions
             + `named` is name-based parameters passed to `create_*`
+            + `events` is the same as for the widget itself, exempt applicable to Canvas elements
 
         Widget categories are any type of widget defined by tkinter, including Button and Frame. The
         specification of these categories is simple -- in example: `'buttons': [ ... ]`. Any instance
@@ -575,14 +604,29 @@ class Window():
             else:
               raise Exception(f"The provided variable type {widget['options'][option]['type']} is invalid.")
 
+        # Comb over the events list and perform command substitutions
+        if 'events' in widget:
+          for ev in widget['events']:
+            for i in range(len(widget['events'][ev])):
+              func = widget['events'][ev][i]
+
+              if 'str' in str(type(func)):
+                if self.hasCommand(func):
+                  widget['events'][ev][i] = self.getCommand(func)
+                else:
+                  raise Exception(f"There is no command '{func}' assigned to this window")
+              elif func.__class__.__name__ in [ 'function', 'method' ]:
+                raise Exception(f"'{func}' is not a bindable function for a widget event")
+
         # Add the widget
         wid = self.__dict__[category].addWidget(
           widget['name'],
           widget['root'],
-          widget['geoMode'],
-          widget['geoOptions'],
-          widget['options'],
-          widget['state'] if 'state' in widget else None
+          widget['geoMode'] if 'geoMode' in widget else 'none',
+          widget['geoOptions'] if 'geoOptions' in widget else {},
+          widget['options'] if 'options' in widget else {},
+          widget['state'] if 'state' in widget else None,
+          widget['events'] if 'events' in widget else {}
         )
 
         # Add listbox options
@@ -607,6 +651,8 @@ class Window():
           }
 
           for stroke in widget['strokes']:
+            obj = None
+
             # Perform the stroke using unnamed and named properties
             if stroke['type'] in types:
               obj = types[stroke['type']](*stroke['unnamed'], **(stroke['named'] if 'named' in stroke else {}))
@@ -615,6 +661,22 @@ class Window():
               pass
             else:
               raise Exception(f"Invalid stroke type provided: '{stroke['type']}'")
+            
+            # Assign event bindings, and perform substitutions for commands as needed
+            if 'events' in stroke:
+              for ev in stroke['events']:
+                for func in stroke['events'][ev]:
+                  if 'str' in str(type(func)):
+                    # Bind a window command
+                    if self.hasCommand(func):
+                      canvas.tag_bind(obj, ev, self.getCommand(func))
+                    else:
+                      raise Exception(f"The window has no command named '{func}'")
+                  elif func.__class__.__name__ in ['function', 'method']:
+                    # Bind a function
+                    canvas.tag_bind(obj, ev, func)
+                  else:
+                    raise Exception(f"'{func}' is not a bindable function for a Canvas graphic")
     
     return self
 
@@ -646,8 +708,9 @@ class Window():
     """
         Accepts a name and function already-defined using Python, and binds the function to
         this window for execution in widgets that use it. A function should be defined with
-        a header that includes `self` as the lone parameter, and should not return values.
-        `self` in the context of said function will be this window.
+        a header that includes `self` as a parameter, and `event=None` as an optional one,
+        and should not return values. `self` in the context of said function will be this
+        window, and `event` will be assigned if the command is used for an event binding.
 
         Keyword arguments:
         + `name` The name to represent the function `com` as
@@ -680,7 +743,8 @@ class Window():
     """
         Accepts a raw, single-line string (using `\\n` as line separators) alongside a name,
         and generates a command bound to this Window. The spacing of each line should follow
-        the same constraints as any other Python code, exempting the `def func(self)` line.
+        the same constraints as any other Python code, exempting the line
+        `def func(self, event=None)`.
 
         Keyword arguments:
         + `name` The name of the command which the code in `com` should be represented by
@@ -693,7 +757,7 @@ class Window():
       parsed = '\n'.join([' '+ln for ln in com.split('\n')])
       _local = {}
 
-      exec(f"def com_{name}(self):\n{parsed}", None, _local)
+      exec(f"def com_{name}(self, event=None):\n{parsed}", None, _local)
 
       for name, value in _local.items():
         setattr(self, name, types.MethodType(value, self))
@@ -732,6 +796,90 @@ class Window():
         self.addCommand(name, com)
     return self
   
+  def bindEvents(self, events={}):
+    """
+        Binds a series of functions to a series of events as specified in the provided dictionary.
+        The dictionary should have event-functionlist pairs, where the event is an event as defined
+        for tkinter, and the function list should be a list of function pointers or command names.
+
+        Keyword arguments:
+        + `events` A dictionary of event-functionlist pairs for assignment to the window
+
+        Returns: Self for chaining
+    """
+
+    for ev in events:
+      for func in events[ev]:
+        self.bindEvent(ev, func)
+    
+    return self
+  
+  def unbindEvents(self, events={}):
+    """
+        Unbinds a series of functions from a series of events as specified in the provided dictionary.
+        The dictionary should have event-functionlist pairs, where the event if an event as defined
+        for tkinter, and the function list should be a list of function pointers or command names.
+
+        Keyword arguments:
+        + `events` A dictionary of event-functionlist pairs for unassignment
+
+        Returns: Self for chaining
+    """
+
+    for ev in events:
+      for func in events[ev]:
+        self.unbindEvent(ev, func)
+    
+    return self
+  
+  def bindEvent(self, event, code):
+    """
+        Binds a single event for the window using either a command name or function pointer. If
+        a command name is specified, and the command does not exist, an exception will be raised.
+
+        Keyword arguments:
+        + `event` The event name, as defined in tkinter, to assign the code to
+        + `code` A function pointer or command name to assign to the event
+
+        Returns: Self for chaining
+    """
+
+    if 'str' in str(type(code)):
+      if self.hasCommand(code):
+        code = self.getCommand(code)
+      else:
+        raise Exception(f"The window has no command '{code}'")
+    elif not 'function' in str(type(code)):
+      raise Exception("A function was not provided for binding to the window")
+
+    self.gui.bind(event, code)
+
+    return self
+  
+  def unbindEvent(self, event, code):
+    """
+        Unbinds a single event for the window using either a command name or function pointer. If
+        a command name is specified, and the command does not exists, an exception will be raised.
+
+        Keyword arguments:
+        + `event` The event name, as defined in tkinter, to unbind the code from
+        + `code` The function pointer or command name to assign to the event
+
+        Returns: Self for chaining
+    """
+
+    if 'str' in str(type(code)):
+      if self.hasCommand(code):
+        code = self.getCommand(code)
+      else:
+        raise Exception(f"The window has no command '{code}'")
+    elif not 'function' in str(type(code)):
+      raise Exception("A function was not provided for unbinding to the window")
+
+    self.gui.unbind(event, code)
+
+    return self
+  
   def show(self):
     """
         Shows the window
@@ -768,7 +916,7 @@ class Window():
     return self
 
   @staticmethod
-  def build(width=480, height=320, title='PUI', icon=None, menu=None, com=[], widgets={}):
+  def build(width=480, height=320, title='PUI', icon=None, menu=None, com=[], events={}, widgets={}):
     """
         Builds a Window by shortening all critical function calls to this single call.
 
@@ -779,12 +927,13 @@ class Window():
         + `icon` The filepath of the icon to be used for the window
         + `menu` A Menu instance for adding a menu to the window, or None for no menu
         + `com` The list of (name, function|code) pairs to associate with the window
+        + `events` A dictionary of (event, functionlist) pairs for binding to the window
         + `widgets` The dictionary of (category, widgetlist) pairs for adding widgets
 
         Returns: The Window built using the given parameters
     """
 
-    return Window(width, height, title).setIcon(icon).addCommandsMixed(com).addMenu(menu).addWidgets(widgets)
+    return Window(width, height, title).setIcon(icon).addCommandsMixed(com).bindEvents(events).addMenu(menu).addWidgets(widgets)
 
   @staticmethod
   def buildFromDict(dic=None):
@@ -800,6 +949,7 @@ class Window():
           if 'menu' in dic else None,
         [(k, dic['commands'][k]) for k in dic['commands']]
           if 'commands' in dic else [],
+        dic['events'] if 'events' in dic else {},
         dic['widgets']
       )
 
@@ -811,12 +961,16 @@ class Window():
         ```
         { "win" : { "width" : 480, "height" : 320, "title" : "", "icon" : "" },
           "commands" : { "sample" : "print(\"Hello\")" },
+          "events" : { },
           "menu" : { "name" : "", "options" : { "tearoff" : 0 }, "children" : { } },
           "widgets" : { } }
         ```
 
         Where:
         + `win` specifies the width, height, title, and icon filepath for the Window
+        + `events` is a dictionary of (event, functionlist) pairs where each entry in the function list
+          is assigned to the window as a responder to the event provided. It has a form similar to:
+          + `{ "<Button-1>" : [ "sample" ] }`
         + `commands` is a set of name-code pairs, where code is Python code separated by line with \\n
         + `menu` is the entire structure of the 'File' menu at the top of the window,
         + `widgets` is a dictionary of category-widgetlist pairs for adding widgets to the Window
@@ -829,6 +983,4 @@ class Window():
 
     return None if not raw else Window.buildFromDict(json.loads(raw))
 
-      # TODO Event bindings for canvas children
-      # TODO Modify canvas children using configure -- https://tkdocs.com/tutorial/canvas.html > Modifying Items
-      # TODO Event bindings in BUILD and ADDEVENTS func, for window + widgets
+# TODO Modify canvas children using configure -- https://tkdocs.com/tutorial/canvas.html > Modifying Items

@@ -6,7 +6,11 @@
         "icon" : "./src/gui/icon.png"
     },
     "commands" : {
-        "sample" : "print(\"Hello World\")"
+        "sample" : "print(\"Hello World\")",
+        "event" : "print(event.x, event.y)"
+    },
+    "events" : {
+        "<Button-1>" : [ "event" ]
     },
     "menus": {
         "mnuSample" : {
@@ -52,7 +56,7 @@
         ],
         "canvases" : [
             {
-                // name, root, geoMode, geoOptions, options
+                // name, root, geoMode, geoOptions, options, events
                 "strokes" : [
                     {
                         "type" : "line",
